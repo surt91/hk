@@ -191,7 +191,6 @@ impl HegselmannKrause {
         self.agents[idx].opinion = sum / count as f64;
     }
 
-    // this is very slow due to copying
     pub fn step_bisect(&mut self) {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
@@ -265,8 +264,8 @@ impl HegselmannKrause {
     pub fn sweep(&mut self) {
         for _ in 0..self.num_agents {
             // self.step_naive();
-            // self.step_bisect();
-            self.step_cells();
+            self.step_bisect();
+            // self.step_cells();
         }
     }
 

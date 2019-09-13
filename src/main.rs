@@ -1,11 +1,8 @@
 use std::fs::File;
-use std::io::prelude::*;
 
-use rand;
+mod models;
 
-mod model;
-
-use model::HegselmannKrause;
+use models::HegselmannKrause;
 
 
 fn main() -> std::io::Result<()> {
