@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
+use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -8,6 +9,8 @@ use rand_pcg::Pcg64;
 use itertools::Itertools;
 
 use ordered_float::OrderedFloat;
+
+const EPS: f32 = 1e-4;
 
 #[derive(Clone, Debug)]
 struct HKAgent {
@@ -24,6 +27,12 @@ impl HKAgent {
     }
 }
 
+impl PartialEq for HKAgent {
+    fn eq(&self, other: &HKAgent) -> bool {
+        (self.opinion - other.opinion).abs() < EPS
+            && (self.tolerance - other.tolerance).abs() < EPS
+    }
+}
 pub struct HegselmannKrause {
     num_agents: u32,
     agents: Vec<HKAgent>,
@@ -31,6 +40,18 @@ pub struct HegselmannKrause {
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
     rng: Pcg64,
+}
+
+impl PartialEq for HegselmannKrause {
+    fn eq(&self, other: &HegselmannKrause) -> bool {
+        self.agents == other.agents
+    }
+}
+
+impl fmt::Debug for HegselmannKrause {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "HK {{ N: {}, agents: {:?} }}", self.num_agents, self.agents)
+    }
 }
 
 impl HegselmannKrause {
@@ -52,7 +73,7 @@ impl HegselmannKrause {
         }
     }
 
-    fn step_naive(&mut self) {
+    pub fn step_naive(&mut self) {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
         let i = &self.agents[idx];
@@ -66,7 +87,7 @@ impl HegselmannKrause {
     }
 
     // this is very slow due to copying
-    fn step_bisect(&mut self) {
+    pub fn step_bisect(&mut self) {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
         let i = &self.agents[idx];
