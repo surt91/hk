@@ -10,12 +10,26 @@ mod tests {
     fn test_cmp_naive_bisect() {
         let mut hk1 = HegselmannKrause::new(100, 13);
         let mut hk2 = HegselmannKrause::new(100, 13);
-        for i in 0..1000*200 {
-            println!("{}", i);
-            println!("naive:  {:?}", hk1);
-            println!("bisect: {:?}", hk2);
+        for i in 0..100 {
+            // println!("{}", i);
             hk1.step_naive();
             hk2.step_bisect();
+            // println!("naive:  {:?}", hk1);
+            // println!("bisect: {:?}", hk2);
+            assert!(hk1 == hk2);
+        }
+    }
+
+    #[test]
+    fn test_cmp_naive_cell() {
+        let mut hk1 = HegselmannKrause::new(100, 13);
+        let mut hk2 = HegselmannKrause::new(100, 13);
+        for i in 0..100 {
+            // println!("{}", i);
+            hk1.step_naive();
+            hk2.step_cells();
+            // println!("naive:  {:?}", hk1);
+            // println!("cell:   {:?}", hk2);
             assert!(hk1 == hk2);
         }
     }
