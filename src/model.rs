@@ -278,6 +278,8 @@ impl HegselmannKrause {
     }
 
     pub fn write_gp(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {
+        write!(file, "set terminal pngcairo\n")?;
+        write!(file, "set output '{}.png'\n", outfilename)?;
         write!(file, "set xl 't'\n")?;
         write!(file, "set yl 'x_i'\n")?;
         write!(file, "p '{}' u 0:1 w l not, ", outfilename)?;
