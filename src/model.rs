@@ -11,16 +11,16 @@ use itertools::Itertools;
 
 use ordered_float::OrderedFloat;
 
-const EPS: f32 = 1e-4;
+const EPS: f64 = 1e-6;
 
 #[derive(Clone, Debug)]
 struct HKAgent {
-    opinion: f32,
-    tolerance: f32,
+    opinion: f64,
+    tolerance: f64,
 }
 
 impl HKAgent {
-    fn new(opinion: f32, tolerance: f32) -> HKAgent {
+    fn new(opinion: f64, tolerance: f64) -> HKAgent {
         HKAgent {
             opinion,
             tolerance,
@@ -37,7 +37,7 @@ impl PartialEq for HKAgent {
 
 #[derive(Clone, Debug)]
 struct Cell {
-    total: f32,
+    total: f64,
     count: u32,
     agent_ids: HashSet<usize>,
 }
@@ -51,14 +51,14 @@ impl Cell {
         }
     }
 
-    fn insert(&mut self, agent_id: usize, val: f32) {
+    fn insert(&mut self, agent_id: usize, val: f64) {
         assert!(!self.agent_ids.contains(&agent_id));
         self.agent_ids.insert(agent_id);
         self.total += val;
         self.count += 1;
     }
 
-    fn remove(&mut self, agent_id: usize, val: f32) {
+    fn remove(&mut self, agent_id: usize, val: f64) {
         assert!(self.agent_ids.contains(&agent_id));
         assert!(self.count > 0);
         self.agent_ids.remove(&agent_id);
@@ -66,20 +66,20 @@ impl Cell {
         self.count -= 1;
     }
 
-    fn mean(&self) -> f32 {
-        self.total / self.count as f32
+    fn mean(&self) -> f64 {
+        self.total / self.count as f64
     }
 }
 
 struct CellList {
     cells: Vec<Cell>,
-    borders: Vec<OrderedFloat<f32>>,
+    borders: Vec<OrderedFloat<f64>>,
 }
 
 impl CellList {
-    fn new(n: u32, lower: f32, upper: f32) -> CellList {
-        let width = (upper - lower) / n as f32;
-        let borders = (0..(n+1)).map(|i| width * i as f32)
+    fn new(n: u32, lower: f64, upper: f64) -> CellList {
+        let width = (upper - lower) / n as f64;
+        let borders = (0..(n+1)).map(|i| width * i as f64)
             .map(|x| OrderedFloat(x))
             .collect();
         CellList {
@@ -88,7 +88,7 @@ impl CellList {
         }
     }
 
-    fn get_cell_idx(&self, val: f32) -> usize {
+    fn get_cell_idx(&self, val: f64) -> usize {
         // we also use this function with added/subtracted tolerance
         // so we have to handle values outside of [0,1]
 
@@ -115,7 +115,7 @@ impl CellList {
         }
     }
 
-    fn change(&mut self, agent_id: usize, val_old: f32, val_new: f32) {
+    fn change(&mut self, agent_id: usize, val_old: f64, val_new: f64) {
         let idx_old = self.get_cell_idx(val_old);
         let idx_new = self.get_cell_idx(val_new);
 
@@ -134,7 +134,7 @@ pub struct HegselmannKrause {
     num_agents: u32,
     agents: Vec<HKAgent>,
 
-    opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
+    opinion_set: BTreeMap<OrderedFloat<f64>, u32>,
     cell_list: CellList,
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
@@ -166,7 +166,7 @@ impl HegselmannKrause {
         assert!(opinion_set.len() == n as usize);
 
         // datastructure for `step_cells`
-        let mut cell_list = CellList::new((n as f32).sqrt().round() as u32, 0., 1.);
+        let mut cell_list = CellList::new((n as f64).sqrt().round() as u32, 0., 1.);
         cell_list.fill(&agents);
 
         HegselmannKrause {
@@ -186,9 +186,9 @@ impl HegselmannKrause {
         let (sum, count) = self.agents.iter()
             .map(|j| j.opinion)
             .filter(|j| (i.opinion - j).abs() < i.tolerance)
-            .fold((0f32, 0u32), |(sum, count), i| (sum + i, count + 1));
+            .fold((0., 0), |(sum, count), i| (sum + i, count + 1));
 
-        self.agents[idx].opinion = sum / count as f32;
+        self.agents[idx].opinion = sum / count as f64;
     }
 
     // this is very slow due to copying
@@ -200,9 +200,9 @@ impl HegselmannKrause {
         let (sum, count) = self.opinion_set
             .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
             .map(|(j, ctr)| (j.into_inner(), ctr))
-            .fold((0f32, 0u32), |(sum, count), (j, ctr)| (sum + *ctr as f32 * j, count + ctr));
+            .fold((0., 0), |(sum, count), (j, ctr)| (sum + *ctr as f64 * j, count + ctr));
 
-        let new_opinion = sum / count as f32;
+        let new_opinion = sum / count as f64;
 
         // often, nothing changes -> optimize for this converged case
         if i.opinion == new_opinion {
@@ -255,7 +255,7 @@ impl HegselmannKrause {
             }
         }
 
-        let new_opinion = sum / count as f32;
+        let new_opinion = sum / count as f64;
 
         self.cell_list.change(idx, i.opinion, new_opinion);
 
