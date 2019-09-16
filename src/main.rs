@@ -2,10 +2,8 @@ use std::fs::File;
 
 use structopt::StructOpt;
 
-mod models;
-
-use models::HegselmannKrause;
-use models::HegselmannKrauseLorenz;
+use hk::HegselmannKrause;
+use hk::HegselmannKrauseLorenz;
 
 /// Search for a pattern in a file and display the lines that contain it.
 #[derive(StructOpt, Debug)]
