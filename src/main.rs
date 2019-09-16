@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::io::prelude::*;
 
 use structopt::StructOpt;
 
@@ -65,9 +66,29 @@ fn main() -> std::io::Result<()> {
             hk.write_gp(&mut gp, args.outname.to_str().unwrap())?;
 
             let mut output = File::create(outname)?;
-            for _ in 0..args.iterations {
-                hk.sweep();
-                hk.write_state(&mut output)?;
+
+            // simulate until converged
+            if args.iterations == 0 {
+                let mut ctr = 0;
+                loop {
+                    // test if we are convered
+                    ctr += 1;
+                    hk.sweep();
+                    if hk.acc_change < 1e-7 {
+                        write!(output, "# sweeps: {}\n", ctr)?;
+                        hk.write_equilibrium(&mut output)?;
+                        return Ok(())
+                    }
+                    hk.acc_change = 0.;
+                }
+            } else {
+                for _ in 0..args.iterations {
+                    hk.sweep();
+                    println!("{}", hk.acc_change);
+
+                    hk.acc_change = 0.;
+                    hk.write_state(&mut output)?;
+                }
             }
             Ok(())
         },

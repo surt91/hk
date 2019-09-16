@@ -49,6 +49,7 @@ pub struct HegselmannKrauseLorenz {
     agents: Vec<HKLorenzAgent>,
 
     tmp: Vec<f64>,
+    pub acc_change: f64,
 
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
@@ -82,10 +83,12 @@ impl HegselmannKrauseLorenz {
             dimension: dim,
             agents,
             tmp: vec![0.; dim as usize],
+            acc_change: 0.,
             rng,
         }
     }
 
+    // TOOD: maybe we can get some speedup using an r-tree or similar
     pub fn step_naive(&mut self) {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
@@ -107,6 +110,7 @@ impl HegselmannKrauseLorenz {
 
         for j in 0..self.dimension as usize {
             self.tmp[j] /= count as f64;
+            self.acc_change += (self.tmp[j] - self.agents[idx].opinion[j]).abs();
         }
 
         mem::swap(&mut self.agents[idx].opinion, &mut self.tmp);
@@ -122,6 +126,13 @@ impl HegselmannKrauseLorenz {
         let string_list = self.agents.iter()
             .map(|j| j.opinion.iter().map(|x| x.to_string()).join(" "))
             .join(" ");
+        write!(file, "{}\n", string_list)
+    }
+
+    pub fn write_equilibrium(&self, file: &mut File) -> std::io::Result<()> {
+        let string_list = self.agents.iter()
+            .map(|j| j.opinion.iter().map(|x| x.to_string()).join(" "))
+            .join("\n");
         write!(file, "{}\n", string_list)
     }
 
