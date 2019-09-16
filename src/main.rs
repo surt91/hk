@@ -64,8 +64,6 @@ fn main() -> std::io::Result<()> {
             let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance, args.max_tolerance, args.dimension, args.seed);
 
             let outname = args.outname.with_extension("dat");
-            let mut gp = File::create(args.outname.with_extension("gp"))?;
-            hk.write_gp(&mut gp, args.outname.to_str().unwrap())?;
 
             let mut output = File::create(&outname)?;
 
@@ -88,6 +86,8 @@ fn main() -> std::io::Result<()> {
                     hk.acc_change = 0.;
                 }
             } else {
+                let mut gp = File::create(args.outname.with_extension("gp"))?;
+                hk.write_gp(&mut gp, args.outname.to_str().unwrap())?;
                 for _ in 0..args.iterations {
                     hk.sweep();
                     println!("{}", hk.acc_change);
