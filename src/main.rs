@@ -1,37 +1,69 @@
 use std::fs::File;
 
+use structopt::StructOpt;
+
 mod models;
 
 use models::HegselmannKrause;
 use models::HegselmannKrauseLorenz;
 
-//
-// fn main() -> std::io::Result<()> {
-//     let mut hk = HegselmannKrause::new(1000, 13);
-//
-//     let outname: &'static str = "out_cell.dat";
-//     let mut output = File::create(outname)?;
-//     let mut gp = File::create("out_cell.gp")?;
-//     hk.write_gp(&mut gp, outname)?;
-//
-//     for _ in 0..200 {
-//         hk.sweep();
-//         hk.write_state(&mut output)?;
-//     }
-//     Ok(())
-// }
+/// Search for a pattern in a file and display the lines that contain it.
+#[derive(StructOpt, Debug)]
+struct Opt {
+    #[structopt(short, long)]
+    /// number of interacting agents
+    num_agents: u32,
+    #[structopt(short, long, default_value = "2")]
+    /// number of dimensions (only for Lorenz modification)
+    dimension: u32,
+    #[structopt(short, long, default_value = "1")]
+    /// seed to use for the simulation
+    seed: u64,
+    #[structopt(short, long, default_value = "100")]
+    /// number of sweeps to run the simulation
+    iterations: u64,
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "2"])]
+    /// which model to simulate
+    /// 1 -> Hegselmann Krause
+    /// 2 -> multidimensional Hegselmann Krause (Lorenz)
+    model: u32,
+    #[structopt(short, long, default_value = "out", parse(from_os_str))]
+    /// name of the output data file
+    outname: std::path::PathBuf,
+}
 
 fn main() -> std::io::Result<()> {
-    let mut hk = HegselmannKrauseLorenz::new(100, 3, 13);
+    let args = Opt::from_args();
 
-    let outname: &'static str = "out_hkl.dat";
-    let mut output = File::create(outname)?;
-    let mut gp = File::create("out_hkl.gp")?;
-    hk.write_gp(&mut gp, outname)?;
+    match args.model {
+        1 => {
+            let mut hk = HegselmannKrause::new(args.num_agents, args.seed);
 
-    for _ in 0..200 {
-        hk.sweep();
-        hk.write_state(&mut output)?;
+            let outname = args.outname.with_extension("dat");
+            let mut gp = File::create(args.outname.with_extension("gp"))?;
+            hk.write_gp(&mut gp, outname.to_str().unwrap())?;
+
+            let mut output = File::create(outname)?;
+            for _ in 0..args.iterations {
+                hk.sweep();
+                hk.write_state(&mut output)?;
+            }
+            Ok(())
+        },
+        2 => {
+            let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.dimension, args.seed);
+
+            let outname = args.outname.with_extension("dat");
+            let mut gp = File::create(args.outname.with_extension("gp"))?;
+            hk.write_gp(&mut gp, outname.to_str().unwrap())?;
+
+            let mut output = File::create(outname)?;
+            for _ in 0..args.iterations {
+                hk.sweep();
+                hk.write_state(&mut output)?;
+            }
+            Ok(())
+        },
+        _ => unreachable!()
     }
-    Ok(())
 }
