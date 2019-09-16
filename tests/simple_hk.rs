@@ -8,9 +8,9 @@ mod tests {
 
     #[test]
     fn test_cmp_naive_bisect() {
-        let mut hk1 = HegselmannKrause::new(100, 13);
-        let mut hk2 = HegselmannKrause::new(100, 13);
-        for i in 0..100 {
+        let mut hk1 = HegselmannKrause::new(100, 0., 1.0, 13);
+        let mut hk2 = HegselmannKrause::new(100, 0., 1.0, 13);
+        for _ in 0..100 {
             // println!("{}", i);
             hk1.step_naive();
             hk2.step_bisect();
@@ -22,9 +22,9 @@ mod tests {
 
     #[test]
     fn test_cmp_naive_cell() {
-        let mut hk1 = HegselmannKrause::new(100, 13);
-        let mut hk2 = HegselmannKrause::new(100, 13);
-        for i in 0..100 {
+        let mut hk1 = HegselmannKrause::new(100, 0., 1., 13);
+        let mut hk2 = HegselmannKrause::new(100, 0., 1., 13);
+        for _ in 0..100 {
             // println!("{}", i);
             hk1.step_naive();
             hk2.step_cells();

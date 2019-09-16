@@ -68,10 +68,14 @@ impl fmt::Debug for HegselmannKrauseLorenz {
 }
 
 impl HegselmannKrauseLorenz {
-    pub fn new(n: u32, dim: u32, seed: u64) -> HegselmannKrauseLorenz {
+    pub fn new(n: u32, min_tolerance: f64, max_tolerance: f64, dim: u32, seed: u64) -> HegselmannKrauseLorenz {
         let mut rng = Pcg64::seed_from_u64(seed);
         let dirichlet = Dirichlet::new_with_size(1.0, dim as usize).unwrap();
-        let agents: Vec<HKLorenzAgent> = (0..n).map(|_| HKLorenzAgent::new(dirichlet.sample(&mut rng), rng.gen())).collect();
+        let stretch = |x: f64| x*(max_tolerance-min_tolerance)+min_tolerance;
+        let agents: Vec<HKLorenzAgent> = (0..n).map(|_| HKLorenzAgent::new(
+            dirichlet.sample(&mut rng),
+            stretch(rng.gen())
+        )).collect();
 
         HegselmannKrauseLorenz {
             num_agents: n,

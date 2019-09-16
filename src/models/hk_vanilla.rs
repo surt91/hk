@@ -150,9 +150,13 @@ impl fmt::Debug for HegselmannKrause {
 }
 
 impl HegselmannKrause {
-    pub fn new(n: u32, seed: u64) -> HegselmannKrause {
+    pub fn new(n: u32, min_tolerance: f64, max_tolerance: f64, seed: u64) -> HegselmannKrause {
         let mut rng = Pcg64::seed_from_u64(seed);
-        let agents: Vec<HKAgent> = (0..n).map(|_| HKAgent::new(rng.gen(), rng.gen())).collect();
+        let stretch = |x: f64| x*(max_tolerance-min_tolerance)+min_tolerance;
+        let agents: Vec<HKAgent> = (0..n).map(|_| HKAgent::new(
+            rng.gen(),
+            stretch(rng.gen())
+        )).collect();
 
         // datastructure for `step_bisect`
         let mut opinion_set = BTreeMap::new();
