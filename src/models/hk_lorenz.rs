@@ -116,21 +116,26 @@ impl HegselmannKrauseLorenz {
 
     pub fn write_state(&self, file: &mut File) -> std::io::Result<()> {
         let string_list = self.agents.iter()
-            .map(|j| j.opinion.iter().map(|x| x.to_string()).join(","))
+            .map(|j| j.opinion.iter().map(|x| x.to_string()).join(" "))
             .join(" ");
         write!(file, "{}\n", string_list)
     }
 
     pub fn write_gp(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {
         write!(file, "set terminal pngcairo\n")?;
-        write!(file, "set output '{}.png'\n", outfilename)?;
-        write!(file, "set xl 't'\n")?;
-        write!(file, "set yl 'x_i'\n")?;
-        write!(file, "p '{}' u 0:1 w l not, ", outfilename)?;
 
-        let string_list = (2..self.num_agents)
-            .map(|j| format!("'' u 0:{} w l not,", j))
-            .join(" ");
-        write!(file, "{}", string_list)
+        for i in 0..self.dimension {
+            write!(file, "set output '{}_d{}.png'\n", outfilename, i)?;
+            write!(file, "set xl 't'\n")?;
+            write!(file, "set yl 'x_i'\n")?;
+            write!(file, "p '{}' u 0:{} w l not, ", outfilename, i+1)?;
+
+            let string_list = (2..self.num_agents)
+                .map(|j| format!("'' u 0:{} w l not,", j*self.dimension+i))
+                .join(" ");
+            write!(file, "{}\n", string_list)?;
+        }
+
+        Ok(())
     }
 }
