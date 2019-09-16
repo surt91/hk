@@ -65,10 +65,6 @@ impl Cell {
         self.total -= val;
         self.count -= 1;
     }
-
-    fn mean(&self) -> f64 {
-        self.total / self.count as f64
-    }
 }
 
 struct CellList {
