@@ -12,7 +12,7 @@ x = []
 y = []
 z = []
 
-files = glob("data/*.dat")
+files = glob("data/*.dat.gz")
 for f in files:
     a = np.loadtxt(f)
 

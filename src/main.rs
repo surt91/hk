@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::prelude::*;
 
+use std::process::Command;
+
 use structopt::StructOpt;
 
 use hk::HegselmannKrause;
@@ -65,18 +67,22 @@ fn main() -> std::io::Result<()> {
             let mut gp = File::create(args.outname.with_extension("gp"))?;
             hk.write_gp(&mut gp, args.outname.to_str().unwrap())?;
 
-            let mut output = File::create(outname)?;
+            let mut output = File::create(&outname)?;
 
             // simulate until converged
             if args.iterations == 0 {
                 let mut ctr = 0;
                 loop {
-                    // test if we are convered
+                    // test if we are converged
                     ctr += 1;
                     hk.sweep();
                     if hk.acc_change < 1e-7 {
                         write!(output, "# sweeps: {}\n", ctr)?;
                         hk.write_equilibrium(&mut output)?;
+                        Command::new("gzip")
+                            .arg(format!("{}.dat", outname.to_str().unwrap()))
+                            .output()
+                            .expect("failed to zip output file");
                         return Ok(())
                     }
                     hk.acc_change = 0.;
