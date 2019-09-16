@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 rand = "0.7.0"
 rand_pcg = "0.2.0"
+rand_distr = "0.2.2"
 itertools = "*"
 clap = "*"
 ordered-float = "1.0"

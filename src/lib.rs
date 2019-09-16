@@ -1,3 +1,3 @@
-mod model;
+mod models;
 
-pub use model::HegselmannKrause;
+pub use models::HegselmannKrause;
