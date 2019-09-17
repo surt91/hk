@@ -33,7 +33,7 @@ struct Opt {
     #[structopt(short, long, default_value = "100")]
     /// number of sweeps to run the simulation
     iterations: u64,
-    #[structopt(short, long, default_value = "1", possible_values = &["1", "2"])]
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3"])]
     /// which model to simulate:
     /// 1 -> Hegselmann Krause,
     /// 2 -> multidimensional Hegselmann Krause (Lorenz)
