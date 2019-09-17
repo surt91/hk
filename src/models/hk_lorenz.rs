@@ -10,28 +10,28 @@ use rand_pcg::Pcg64;
 use rand_distr::Dirichlet;
 use itertools::Itertools;
 
-const EPS: f64 = 1e-6;
+const EPS: f32 = 1e-6;
 
 #[derive(Clone, Debug)]
 struct HKLorenzAgent {
-    opinion: Vec<f64>,
-    tolerance: f64,
+    opinion: Vec<f32>,
+    tolerance: f32,
 }
 
 impl HKLorenzAgent {
-    fn new(opinion: Vec<f64>, tolerance: f64) -> HKLorenzAgent {
+    fn new(opinion: Vec<f32>, tolerance: f32) -> HKLorenzAgent {
         HKLorenzAgent {
             opinion,
             tolerance,
         }
     }
 
-    fn dist(&self, other: &HKLorenzAgent) -> f64 {
+    fn dist(&self, other: &HKLorenzAgent) -> f32 {
         assert!(self.opinion.len() == other.opinion.len());
         self.opinion.iter()
             .zip(&other.opinion)
             .map(|(a, b)| (a-b)*(a-b))
-            .sum::<f64>()
+            .sum::<f32>()
             .sqrt()
     }
 }
@@ -49,8 +49,8 @@ pub struct HegselmannKrauseLorenz {
     dimension: u32,
     agents: Vec<HKLorenzAgent>,
 
-    tmp: Vec<f64>,
-    pub acc_change: f64,
+    tmp: Vec<f32>,
+    pub acc_change: f32,
 
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
@@ -70,10 +70,10 @@ impl fmt::Debug for HegselmannKrauseLorenz {
 }
 
 impl HegselmannKrauseLorenz {
-    pub fn new(n: u32, min_tolerance: f64, max_tolerance: f64, dim: u32, seed: u64) -> HegselmannKrauseLorenz {
+    pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, dim: u32, seed: u64) -> HegselmannKrauseLorenz {
         let mut rng = Pcg64::seed_from_u64(seed);
         let dirichlet = Dirichlet::new_with_size(1.0, dim as usize).unwrap();
-        let stretch = |x: f64| x*(max_tolerance-min_tolerance)+min_tolerance;
+        let stretch = |x: f32| x*(max_tolerance-min_tolerance)+min_tolerance;
         let agents: Vec<HKLorenzAgent> = (0..n).map(|_| HKLorenzAgent::new(
             dirichlet.sample(&mut rng),
             stretch(rng.gen())
@@ -110,7 +110,7 @@ impl HegselmannKrauseLorenz {
         }
 
         for j in 0..self.dimension as usize {
-            self.tmp[j] /= count as f64;
+            self.tmp[j] /= count as f32;
             self.acc_change += (self.tmp[j] - self.agents[idx].opinion[j]).abs();
         }
 
@@ -160,9 +160,18 @@ impl HegselmannKrauseLorenz {
     }
 
     pub fn write_cluster_sizes(&self, file: &mut File) -> std::io::Result<()> {
-        let string_list = self.cluster_sizes().iter()
+        let clusters = self.list_clusters();
+
+        let string_list = clusters.iter()
+            .map(|c| c[0].opinion.iter().map(|x| x.to_string()).join(" "))
             .join(" ");
-        write!(file, "{}\n", string_list)
+        write!(file, "# {}\n", string_list)?;
+
+        let string_list = clusters.iter()
+            .map(|c| c.len().to_string())
+            .join(" ");
+        write!(file, "{}\n", string_list)?;
+        Ok(())
     }
 
     pub fn write_gp(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {

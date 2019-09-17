@@ -47,7 +47,7 @@ fn main() -> std::io::Result<()> {
 
     match args.model {
         1 => {
-            let mut hk = HegselmannKrause::new(args.num_agents, args.min_tolerance, args.max_tolerance, args.seed);
+            let mut hk = HegselmannKrause::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.seed);
 
             let outname = args.outname.with_extension("dat");
             let mut gp = File::create(args.outname.with_extension("gp"))?;
@@ -61,7 +61,7 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         2 => {
-            let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance, args.max_tolerance, args.dimension, args.seed);
+            let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
 
             let dataname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
