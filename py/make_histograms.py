@@ -7,14 +7,16 @@ import matplotlib.pyplot as plt
 from rotate import rotate_to_xy_plane
 # can also use matplotlib.pyplot.hexbin
 
+import parameters
+from parameters import parameters as p
 
 x = []
 y = []
 z = []
 
-files = glob("data/*.dat.gz")
-for f in files:
-    a = np.loadtxt(f)
+for i in range(p["samples"]):
+    name = parameters.outname.format(seed=i, **p).replace(".", "")
+    a = np.loadtxt(name + ".dat.gz")
 
     for point in a:
         p = rotate_to_xy_plane(point+np.array([-1, 0, 0]))
