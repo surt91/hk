@@ -63,9 +63,11 @@ fn main() -> std::io::Result<()> {
         2 => {
             let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance, args.max_tolerance, args.dimension, args.seed);
 
-            let outname = args.outname.with_extension("dat");
+            let dataname = args.outname.with_extension("dat");
+            let clustername = args.outname.with_extension("cluster.dat");
 
-            let mut output = File::create(&outname)?;
+            let mut output = File::create(&dataname)?;
+            let mut output_cluster = File::create(&clustername)?;
 
             // simulate until converged
             if args.iterations == 0 {
@@ -77,8 +79,10 @@ fn main() -> std::io::Result<()> {
                     if hk.acc_change < 1e-7 {
                         write!(output, "# sweeps: {}\n", ctr)?;
                         hk.write_equilibrium(&mut output)?;
+                        hk.write_cluster_sizes(&mut output_cluster)?;
                         Command::new("gzip")
-                            .arg(format!("{}.dat", outname.to_str().unwrap()))
+                            .arg(format!("{}", dataname.to_str().unwrap()))
+                            .arg(format!("{}", clustername.to_str().unwrap()))
                             .output()
                             .expect("failed to zip output file");
                         return Ok(())

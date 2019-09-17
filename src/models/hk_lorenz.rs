@@ -2,6 +2,7 @@ use std::mem;
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
+use std::collections::HashSet;
 
 // use rand::{Rng, SeedableRng};
 use rand::prelude::*;
@@ -122,6 +123,28 @@ impl HegselmannKrauseLorenz {
         }
     }
 
+    /// A cluster are agents whose distance is less than EPS
+    fn list_clusters(&self) -> Vec<Vec<HKLorenzAgent>> {
+        let mut clusters: Vec<Vec<HKLorenzAgent>> = Vec::new();
+        'agent: for i in &self.agents {
+            for c in &mut clusters {
+                if i.dist(&c[0]) < EPS {
+                    c.push(i.clone());
+                    continue 'agent;
+                }
+            }
+            clusters.push(vec![i.clone(); 1])
+        }
+        clusters
+    }
+
+    pub fn cluster_sizes(&self) -> Vec<u32> {
+        let clusters = self.list_clusters();
+        clusters.iter()
+            .map(|c| c.len() as u32)
+            .collect()
+    }
+
     pub fn write_state(&self, file: &mut File) -> std::io::Result<()> {
         let string_list = self.agents.iter()
             .map(|j| j.opinion.iter().map(|x| x.to_string()).join(" "))
@@ -133,6 +156,12 @@ impl HegselmannKrauseLorenz {
         let string_list = self.agents.iter()
             .map(|j| j.opinion.iter().map(|x| x.to_string()).join(" "))
             .join("\n");
+        write!(file, "{}\n", string_list)
+    }
+
+    pub fn write_cluster_sizes(&self, file: &mut File) -> std::io::Result<()> {
+        let string_list = self.cluster_sizes().iter()
+            .join(" ");
         write!(file, "{}\n", string_list)
     }
 
