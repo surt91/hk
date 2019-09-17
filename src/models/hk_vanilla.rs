@@ -161,9 +161,9 @@ impl HegselmannKrause {
         // datastructure for `step_bisect`
         let mut opinion_set = BTreeMap::new();
         for i in agents.iter() {
-            opinion_set.insert(OrderedFloat(i.opinion), 1);
+            *opinion_set.entry(OrderedFloat(i.opinion)).or_insert(0) += 1;
         }
-        assert!(opinion_set.len() == n as usize);
+        assert!(opinion_set.iter().map(|(_, v)| v).sum::<u32>() == n);
 
         // datastructure for `step_cells`
         let mut cell_list = CellList::new((n as f32).sqrt().round() as u32, 0., 1.);
