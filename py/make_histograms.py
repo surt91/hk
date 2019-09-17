@@ -19,12 +19,12 @@ for i in range(p["samples"]):
     a = np.loadtxt(name + ".dat.gz")
 
     for point in a:
-        p = rotate_to_xy_plane(point+np.array([-1, 0, 0]))
+        pt = rotate_to_xy_plane(point+np.array([-1, 0, 0]))
         # assert that the z-component is zero
-        assert(p[-1] < 1e-8)
-        x.append(p[0])
-        y.append(p[1])
-        z.append(p[2])
+        assert(pt[-1] < 1e-8)
+        x.append(pt[0])
+        y.append(pt[1])
+        z.append(pt[2])
 
 # plt.hexbin(x, y, gridsize=(15,15))
 plt.hist2d(

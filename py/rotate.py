@@ -24,7 +24,7 @@ def build_rotmat(ux, uy, uz, theta):
 
 
 r = build_rotmat(-1/sqrt(2), 1/sqrt(2), 0, -0.955316618124509278163857102515757754243414695010005490959)
-r2 = build_rotmat(0, 0, 1, 0.2617994)
+r2 = build_rotmat(0, 0, 1, -0.2617994)
 
 
 def rotate_to_xy_plane(v):
