@@ -1,14 +1,18 @@
 import os
 
-import multiprocessing
+import parameters
+from parameters import parameters as p
 
-n = 1000
 
 cmds = []
 os.makedirs("data", exist_ok=True)
-for i in range(1000):
-    print(i)
-    cmds.append("target/release/hk -n {n} -u 0.3 -l 0.2 -m 2 -d 3 -i 0 -s {seed} -o data/out_n{n}_02-03_s{seed}".format(seed=i, n=n))
+with open("jobs.lst", "w") as f:
+    for i in range(p["num_samples"]):
+        name = parameters.outname.format(*p)
+        cmd = "target/release/hk -n {num_agents} -u {tolerance_upper} -l {tolerance_lower} -m {model} -d {dimension} -i {iterations} -s {seed} -o {filename}".format(seed=i, filename=name, **p)
+        cmds.append(cmd)
+        f.write("{}\n")
 
-with multiprocessing.Pool() as p:
-    p.map(os.system, cmds)
+# import multiprocessing
+# with multiprocessing.Pool(1) as p:
+#     p.map(os.system, cmds)
