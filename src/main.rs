@@ -6,6 +6,7 @@ use std::process::Command;
 use structopt::StructOpt;
 
 use hk::HegselmannKrause;
+use hk::HegselmannKrauseAC;
 use hk::HegselmannKrauseLorenz;
 
 /// Simulate a (modified) Hegselmann Krause model
@@ -23,6 +24,9 @@ struct Opt {
     #[structopt(short = "u", long, default_value = "1.0")]
     /// maximum tolerance of agents (uniformly distributed)
     max_tolerance: f64,
+    #[structopt(short = "r", long, default_value = "5")]
+    /// start resources for HKAC
+    start_resources: f64,
     #[structopt(short, long, default_value = "1")]
     /// seed to use for the simulation
     seed: u64,
@@ -33,6 +37,7 @@ struct Opt {
     /// which model to simulate:
     /// 1 -> Hegselmann Krause,
     /// 2 -> multidimensional Hegselmann Krause (Lorenz)
+    /// 3 -> HK with active cost
     model: u32,
     #[structopt(short, long, default_value = "out", parse(from_os_str))]
     /// name of the output data file
@@ -99,6 +104,20 @@ fn main() -> std::io::Result<()> {
                     hk.acc_change = 0.;
                     hk.write_state(&mut output)?;
                 }
+            }
+            Ok(())
+        },
+        3 => {
+            let mut hk = HegselmannKrauseAC::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.start_resources as f32, args.seed);
+
+            let outname = args.outname.with_extension("dat");
+            let mut gp = File::create(args.outname.with_extension("gp"))?;
+            hk.write_gp(&mut gp, outname.to_str().unwrap())?;
+
+            let mut output = File::create(outname)?;
+            for _ in 0..args.iterations {
+                hk.sweep();
+                hk.write_state(&mut output)?;
             }
             Ok(())
         },
