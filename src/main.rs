@@ -91,7 +91,7 @@ fn main() -> std::io::Result<()> {
                 }
             } else {
                 let mut gp = File::create(args.outname.with_extension("gp"))?;
-                hk.write_gp(&mut gp, args.outname.to_str().unwrap())?;
+                hk.write_gp(&mut gp, dataname.to_str().unwrap())?;
                 for _ in 0..args.iterations {
                     hk.sweep();
                     println!("{}", hk.acc_change);
