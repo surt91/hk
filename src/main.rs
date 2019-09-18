@@ -113,12 +113,15 @@ fn main() -> std::io::Result<()> {
             let outname = args.outname.with_extension("dat");
             let mut gp = File::create(args.outname.with_extension("gp"))?;
             hk.write_gp(&mut gp, outname.to_str().unwrap())?;
+            let mut density = File::create(args.outname.with_extension("density.dat"))?;
 
             let mut output = File::create(outname)?;
             for _ in 0..args.iterations {
                 hk.sweep();
                 hk.write_state(&mut output)?;
             }
+            
+            hk.write_density(&mut density)?;
             Ok(())
         },
         _ => unreachable!()

@@ -46,6 +46,8 @@ pub struct HegselmannKrauseAC {
 
     opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
 
+    dynamic_density: Vec<Vec<u64>>,
+
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
     rng: Pcg64,
@@ -80,10 +82,13 @@ impl HegselmannKrauseAC {
         }
         assert!(opinion_set.iter().map(|(_, v)| v).sum::<u32>() == n);
 
+        let dynamic_density = Vec::new();
+
         HegselmannKrauseAC {
             num_agents: n,
             agents,
             opinion_set,
+            dynamic_density,
             rng,
         }
     }
@@ -131,6 +136,22 @@ impl HegselmannKrauseAC {
         for _ in 0..self.num_agents {
             self.step_bisect();
         }
+        self.add_state_to_density();
+    }
+
+    fn add_state_to_density(&mut self) {
+        let mut slice = vec![0; 100];
+        for i in &self.agents {
+            slice[(i.opinion*100.) as usize] += 1;
+        }
+        self.dynamic_density.push(slice);
+    }
+
+    pub fn write_density(&self, file: &mut File) -> std::io::Result<()> {
+        let string_list = self.dynamic_density.iter()
+            .map(|x| x.iter().join(" "))
+            .join("\n");
+        write!(file, "{}\n", string_list)
     }
 
     pub fn write_state(&self, file: &mut File) -> std::io::Result<()> {
