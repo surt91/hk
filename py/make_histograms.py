@@ -27,7 +27,7 @@ for i in range(p["samples"]):
     for point in a:
         pt = rotate_to_xy_plane(point+np.array([-1, 0, 0]))
         # assert that the z-component is zero
-        assert(abs(pt[-1]) < 1e-4)
+        assert(abs(pt[-1]) < 1e-3)
         # assert that y is positive
         assert(pt[1] > -1e-8)
         xh.append(pt[0])
@@ -68,9 +68,11 @@ plt.hist2d(
     y,
     bins=(50, 50),
     range=[[-1.5, 0], [0., 1.3]],
-    cmap=plt.cm.BuPu,
-    norm=matplotlib.colors.LogNorm()
+    cmap=plt.cm.viridis_r,
+    norm=matplotlib.colors.LogNorm(),
+    density=True
 )
+plt.colorbar()
 plt.show()
 
 print(c_size)
