@@ -2,7 +2,6 @@ use std::mem;
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
-use std::collections::HashSet;
 
 // use rand::{Rng, SeedableRng};
 use rand::prelude::*;
