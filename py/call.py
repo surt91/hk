@@ -12,8 +12,10 @@ with open("jobs.lst", "w") as f:
     for i in range(p["samples"]):
         name = parameters.outname.format(seed=i, **p).replace(".", "")
         cmd = "target/release/hk -n {num_agents} -u {tolerance_upper} -l {tolerance_lower} -m {model} -d {dimension} -i {iterations} -s {seed} -o {filename}".format(seed=i, filename=name, **p)
-        cmds.append(cmd.split())
-        f.write("{}\n".format(cmd))
+        indicator = name + ".dat.gz"
+        if not os.path.exists(indicator) or "-f" in sys.argv:
+            cmds.append(cmd.split())
+            f.write("{}\n".format(cmd))
 
 if "run" in sys.argv:
     import multiprocessing
