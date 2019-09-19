@@ -3,7 +3,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 import parameters
-from parameters import parameters as p
+from parameters import parameters as ps
 
 whole_matrix = np.zeros((p["iterations"]*p["dimension"], 100))
 for i in range(p["samples"]):
