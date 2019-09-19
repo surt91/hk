@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import parameters
 from parameters import parameters as p
 
-whole_matrix = np.zeros((p["iterations"], 100))
+whole_matrix = np.zeros((p["iterations"]*p["dimension"], 100))
 for i in range(p["samples"]):
     name = parameters.outname.format(seed=i, **p).replace(".", "") + ".density.dat"
     a = np.loadtxt(name)

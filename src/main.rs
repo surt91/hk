@@ -73,6 +73,7 @@ fn main() -> std::io::Result<()> {
 
             let mut output = File::create(&dataname)?;
             let mut output_cluster = File::create(&clustername)?;
+            let mut density = File::create(args.outname.with_extension("density.dat"))?;
 
             // simulate until converged
             if args.iterations == 0 {
@@ -99,11 +100,11 @@ fn main() -> std::io::Result<()> {
                 hk.write_gp(&mut gp, dataname.to_str().unwrap())?;
                 for _ in 0..args.iterations {
                     hk.sweep();
-                    println!("{}", hk.acc_change);
 
                     hk.acc_change = 0.;
                     hk.write_state(&mut output)?;
                 }
+                hk.write_density(&mut density)?;
             }
             Ok(())
         },
@@ -120,7 +121,7 @@ fn main() -> std::io::Result<()> {
                 hk.sweep();
                 hk.write_state(&mut output)?;
             }
-            
+
             hk.write_density(&mut density)?;
             Ok(())
         },

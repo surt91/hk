@@ -51,6 +51,8 @@ pub struct HegselmannKrauseLorenz {
     tmp: Vec<f32>,
     pub acc_change: f32,
 
+    dynamic_density: Vec<Vec<Vec<u64>>>,
+
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
     rng: Pcg64,
@@ -78,12 +80,15 @@ impl HegselmannKrauseLorenz {
             stretch(rng.gen())
         )).collect();
 
+        let dynamic_density = vec![Vec::new(); dim as usize];
+
         HegselmannKrauseLorenz {
             num_agents: n,
             dimension: dim,
             agents,
             tmp: vec![0.; dim as usize],
             acc_change: 0.,
+            dynamic_density,
             rng,
         }
     }
@@ -120,6 +125,7 @@ impl HegselmannKrauseLorenz {
         for _ in 0..self.num_agents {
             self.step_naive();
         }
+        self.add_state_to_density()
     }
 
     /// A cluster are agents whose distance is less than EPS
@@ -142,6 +148,26 @@ impl HegselmannKrauseLorenz {
         clusters.iter()
             .map(|c| c.len() as u32)
             .collect()
+    }
+
+    fn add_state_to_density(&mut self) {
+        for d in 0..self.dimension as usize {
+            let mut slice = vec![0; 100];
+            for i in &self.agents {
+                slice[(i.opinion[d]*100.) as usize] += 1;
+            }
+            self.dynamic_density[d].push(slice);
+        }
+    }
+
+    pub fn write_density(&self, file: &mut File) -> std::io::Result<()> {
+        for d in 0..self.dimension as usize {
+            let string_list = self.dynamic_density[d].iter()
+                .map(|x| x.iter().join(" "))
+                .join("\n");
+            write!(file, "{}\n", string_list)?;
+        }
+        Ok(())
     }
 
     pub fn write_state(&self, file: &mut File) -> std::io::Result<()> {
