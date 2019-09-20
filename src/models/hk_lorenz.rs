@@ -145,6 +145,36 @@ impl HegselmannKrauseLorenz {
         self.add_state_to_density()
     }
 
+    fn sync_new_opinions(&self) -> (Vec<Vec<f32>>, f32) {
+        let mut acc_change = 0.;
+        let op = self.agents.iter().map(|i| {
+            let mut tmp = vec![0.; self.dimension as usize];
+            let mut count = 0;
+            for j in self.agents.iter()
+                    .filter(|j| i.dist(j) < i.tolerance) {
+                for k in 0..self.dimension as usize {
+                    tmp[k] += j.opinion[k];
+                }
+                count += 1;
+            }
+            for k in 0..self.dimension as usize {
+                tmp[k] /= count as f32;
+                acc_change += (tmp[k] - i.opinion[k]).abs();
+            }
+            tmp
+        }).collect();
+        (op, acc_change)
+    }
+
+    pub fn sweep_synchronous(&mut self) {
+        let (mut new_opinions, acc_change) = self.sync_new_opinions();
+        self.acc_change += acc_change;
+        for i in 0..self.num_agents as usize {
+            mem::swap(&mut self.agents[i].opinion, &mut new_opinions[i]);
+        }
+        self.add_state_to_density()
+    }
+
     /// A cluster are agents whose distance is less than EPS
     fn list_clusters(&self) -> Vec<Vec<HKLorenzAgent>> {
         let mut clusters: Vec<Vec<HKLorenzAgent>> = Vec::new();
