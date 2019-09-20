@@ -9,8 +9,8 @@ from parameters import parameters as ps
 cmds = []
 os.makedirs("data", exist_ok=True)
 
-for p in ps:
-    with open("jobs.lst", "w") as f:
+with open("jobs.lst", "w") as f:
+    for p in ps:
         for i in range(p["samples"]):
             name = parameters.outname.format(seed=i, **p).replace(".", "")
             cmd = "target/release/hk -n {num_agents} -u {tolerance_upper} -l {tolerance_lower} -m {model} -d {dimension} -i {iterations} -s {seed} -o {filename}".format(seed=i, filename=name, **p)
