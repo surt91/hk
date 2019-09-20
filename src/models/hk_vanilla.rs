@@ -178,6 +178,10 @@ impl HegselmannKrause {
         }
     }
 
+    pub fn reset(&mut self) {
+        unimplemented!()
+    }
+
     pub fn step_naive(&mut self) {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;

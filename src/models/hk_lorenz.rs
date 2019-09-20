@@ -47,9 +47,12 @@ pub struct HegselmannKrauseLorenz {
     num_agents: u32,
     dimension: u32,
     agents: Vec<HKLorenzAgent>,
+    min_tolerance: f32,
+    max_tolerance: f32,
 
     tmp: Vec<f32>,
     pub acc_change: f32,
+    dirichlet: Dirichlet<f32>,
 
     dynamic_density: Vec<Vec<Vec<u64>>>,
 
@@ -72,25 +75,39 @@ impl fmt::Debug for HegselmannKrauseLorenz {
 
 impl HegselmannKrauseLorenz {
     pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, dim: u32, seed: u64) -> HegselmannKrauseLorenz {
-        let mut rng = Pcg64::seed_from_u64(seed);
+        let rng = Pcg64::seed_from_u64(seed);
         let dirichlet = Dirichlet::new_with_size(1.0, dim as usize).unwrap();
-        let stretch = |x: f32| x*(max_tolerance-min_tolerance)+min_tolerance;
-        let agents: Vec<HKLorenzAgent> = (0..n).map(|_| HKLorenzAgent::new(
-            dirichlet.sample(&mut rng),
-            stretch(rng.gen())
-        )).collect();
+        let agents: Vec<HKLorenzAgent> = Vec::new();
 
-        let dynamic_density = vec![Vec::new(); dim as usize];
+        let dynamic_density =  Vec::new();
 
-        HegselmannKrauseLorenz {
+        let mut hk = HegselmannKrauseLorenz {
             num_agents: n,
             dimension: dim,
             agents,
+            min_tolerance,
+            max_tolerance,
             tmp: vec![0.; dim as usize],
             acc_change: 0.,
+            dirichlet,
             dynamic_density,
             rng,
-        }
+        };
+        hk.reset();
+        hk
+    }
+
+    fn stretch(x: f32, low: f32, high: f32) -> f32 {
+        x*(high-low)+low
+    }
+
+    pub fn reset(&mut self) {
+        self.agents = (0..self.num_agents).map(|_| HKLorenzAgent::new(
+            self.dirichlet.sample(&mut self.rng),
+            HegselmannKrauseLorenz::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance)
+        )).collect();
+
+        self.dynamic_density = vec![Vec::new(); self.dimension as usize];
     }
 
     // TOOD: maybe we can get some speedup using an r-tree or similar

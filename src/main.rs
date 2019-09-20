@@ -33,6 +33,9 @@ struct Opt {
     #[structopt(short, long, default_value = "100")]
     /// number of sweeps to run the simulation
     iterations: u64,
+    #[structopt(long, default_value = "1")]
+    /// number of times to repeat the simulation
+    samples: u32,
     #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3"])]
     /// which model to simulate:
     /// 1 -> Hegselmann Krause,
@@ -51,20 +54,22 @@ fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
 
     match args.model {
-        1 => {
-            let mut hk = HegselmannKrause::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.seed);
-
-            let outname = args.outname.with_extension("dat");
-            let mut gp = File::create(args.outname.with_extension("gp"))?;
-            hk.write_gp(&mut gp, outname.to_str().unwrap())?;
-
-            let mut output = File::create(outname)?;
-            for _ in 0..args.iterations {
-                hk.sweep();
-                hk.write_state(&mut output)?;
-            }
-            Ok(())
-        },
+        // 1 => {
+        //
+        //     let outname = args.outname.with_extension("dat");
+        //     let mut hk = HegselmannKrause::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.seed);
+        //     // let mut output = File::create(outname)?;
+        //
+        //     for _ in 0..args.samples {
+        //         hk.reset();
+        //         for _ in 0..args.iterations {
+        //             hk.sweep();
+        //         }
+        //     }
+        //
+        //     // let mut gp = File::create(args.outname.with_extension("gp"))?;
+        //     Ok(())
+        // },
         2 => {
             let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
 
@@ -73,55 +78,63 @@ fn main() -> std::io::Result<()> {
 
             let mut output = File::create(&dataname)?;
             let mut output_cluster = File::create(&clustername)?;
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
+            // let mut density = File::create(args.outname.with_extension("density.dat"))?;
 
             // simulate until converged
             if args.iterations == 0 {
-                let mut ctr = 0;
-                loop {
-                    // test if we are converged
-                    ctr += 1;
-                    hk.sweep();
-                    if hk.acc_change < 1e-7 {
-                        write!(output, "# sweeps: {}\n", ctr)?;
-                        hk.write_equilibrium(&mut output)?;
-                        hk.write_cluster_sizes(&mut output_cluster)?;
-                        Command::new("gzip")
-                            .arg(format!("{}", dataname.to_str().unwrap()))
-                            .arg(format!("{}", clustername.to_str().unwrap()))
-                            .output()
-                            .expect("failed to zip output file");
-                        return Ok(())
+                for _ in 0..args.samples {
+                    hk.reset();
+                    let mut ctr = 0;
+                    loop {
+                        // test if we are converged
+                        ctr += 1;
+                        hk.sweep();
+                        if hk.acc_change < 1e-7 {
+                            write!(output, "# sweeps: {}\n", ctr)?;
+                            // hk.write_equilibrium(&mut output)?;
+                            hk.write_cluster_sizes(&mut output_cluster)?;
+                            break;
+                        }
+                        hk.acc_change = 0.;
                     }
-                    hk.acc_change = 0.;
                 }
-            } else {
-                let mut gp = File::create(args.outname.with_extension("gp"))?;
-                hk.write_gp(&mut gp, dataname.to_str().unwrap())?;
-                for _ in 0..args.iterations {
-                    hk.sweep();
-
-                    hk.acc_change = 0.;
-                    hk.write_state(&mut output)?;
-                }
-                hk.write_density(&mut density)?;
+                drop(output_cluster);
+                Command::new("gzip")
+                    // .arg(format!("{}", dataname.to_str().unwrap()))
+                    .arg(format!("{}", clustername.to_str().unwrap()))
+                    .output()
+                    .expect("failed to zip output file");
             }
+            // } else {
+            //     unimplemented!();
+            //     let mut gp = File::create(args.outname.with_extension("gp"))?;
+            //     hk.write_gp(&mut gp, dataname.to_str().unwrap())?;
+            //     for _ in 0..args.iterations {
+            //         hk.sweep();
+            //
+            //         hk.acc_change = 0.;
+            //         hk.write_state(&mut output)?;
+            //     }
+            //     hk.write_cluster_sizes(&mut output_cluster)?;
+            // }
+            // hk.write_density(&mut density)?;
             Ok(())
         },
         3 => {
             let mut hk = HegselmannKrauseAC::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.start_resources as f32, args.seed);
 
-            let outname = args.outname.with_extension("dat");
-            let mut gp = File::create(args.outname.with_extension("gp"))?;
-            hk.write_gp(&mut gp, outname.to_str().unwrap())?;
+            // let outname = args.outname.with_extension("dat");
+            // let mut gp = File::create(args.outname.with_extension("gp"))?;
+            // hk.write_gp(&mut gp, outname.to_str().unwrap())?;
             let mut density = File::create(args.outname.with_extension("density.dat"))?;
 
-            let mut output = File::create(outname)?;
-            for _ in 0..args.iterations {
-                hk.sweep();
-                hk.write_state(&mut output)?;
+            // let mut output = File::create(outname)?;
+            for _ in 0..args.samples {
+                for _ in 0..args.iterations {
+                    hk.sweep();
+                    // hk.write_state(&mut output)?;
+                }
             }
-
             hk.write_density(&mut density)?;
             Ok(())
         },
