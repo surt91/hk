@@ -54,22 +54,43 @@ fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
 
     match args.model {
-        // 1 => {
-        //
-        //     let outname = args.outname.with_extension("dat");
-        //     let mut hk = HegselmannKrause::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.seed);
-        //     // let mut output = File::create(outname)?;
-        //
-        //     for _ in 0..args.samples {
-        //         hk.reset();
-        //         for _ in 0..args.iterations {
-        //             hk.sweep();
-        //         }
-        //     }
-        //
-        //     // let mut gp = File::create(args.outname.with_extension("gp"))?;
-        //     Ok(())
-        // },
+        1 => {
+            let mut hk = HegselmannKrause::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.seed);
+
+            // let outname = args.outname.with_extension("dat");
+            let clustername = args.outname.with_extension("cluster.dat");
+            let mut output = File::create(&clustername)?;
+
+            for _ in 0..args.samples {
+                hk.reset();
+                if args.iterations == 0 {
+                    let mut ctr = 0;
+                    loop {
+                        // test if we are converged
+                        ctr += 1;
+                        hk.sweep();
+                        if hk.acc_change < 1e-4 {
+                            write!(output, "# sweeps: {}\n", ctr)?;
+                            break;
+                        }
+                        hk.acc_change = 0.;
+                    }
+                } else {
+                    for _ in 0..args.iterations {
+                        hk.sweep();
+                    }
+                }
+                hk.write_cluster_sizes(&mut output)?;
+            }
+
+            drop(output);
+            Command::new("gzip")
+                .arg(format!("{}", clustername.to_str().unwrap()))
+                .output()
+                .expect("failed to zip output file");
+
+            Ok(())
+        },
         2 => {
             let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
 
