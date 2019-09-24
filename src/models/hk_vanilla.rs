@@ -37,11 +37,13 @@ impl PartialEq for HKAgent {
 pub struct HegselmannKrause {
     num_agents: u32,
     agents: Vec<HKAgent>,
+    time: usize,
     min_tolerance: f32,
     max_tolerance: f32,
 
     opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
+    dynamic_density: Vec<Vec<u64>>,
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
     rng: Pcg64,
@@ -67,13 +69,17 @@ impl HegselmannKrause {
         // datastructure for `step_bisect`
         let opinion_set = BTreeMap::new();
 
+        let dynamic_density = Vec::new();
+
         let mut hk = HegselmannKrause {
             num_agents: n,
             agents,
+            time: 0,
             min_tolerance,
             max_tolerance,
             opinion_set,
             acc_change: 0.,
+            dynamic_density,
             rng,
         };
 
@@ -96,6 +102,8 @@ impl HegselmannKrause {
             *self.opinion_set.entry(OrderedFloat(i.opinion)).or_insert(0) += 1;
         }
         assert!(self.opinion_set.iter().map(|(_, v)| v).sum::<u32>() == self.num_agents);
+
+        self.time = 0;
     }
 
     pub fn step_naive(&mut self) {
@@ -143,6 +151,8 @@ impl HegselmannKrause {
             // self.step_naive();
             self.step_bisect();
         }
+        self.add_state_to_density();
+        self.time += 1;
     }
 
     /// A cluster are agents whose distance is less than EPS
@@ -180,6 +190,27 @@ impl HegselmannKrause {
             .join(" ");
         write!(file, "{}\n", string_list)?;
         Ok(())
+    }
+
+    fn add_state_to_density(&mut self) {
+        let mut slice = vec![0; 100];
+        for i in &self.agents {
+            slice[(i.opinion*100.) as usize] += 1;
+        }
+        if self.dynamic_density.len() <= self.time {
+            self.dynamic_density.push(slice);
+        } else {
+            for i in 0..100 {
+                self.dynamic_density[self.time][i] += slice[i];
+            }
+        }
+    }
+
+    pub fn write_density(&self, file: &mut File) -> std::io::Result<()> {
+        let string_list = self.dynamic_density.iter()
+            .map(|x| x.iter().join(" "))
+            .join("\n");
+        write!(file, "{}\n", string_list)
     }
 
     pub fn write_state(&self, file: &mut File) -> std::io::Result<()> {

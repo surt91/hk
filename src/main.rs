@@ -59,6 +59,7 @@ fn main() -> std::io::Result<()> {
 
             // let outname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
+            let mut density = File::create(args.outname.with_extension("density.dat"))?;
             let mut output = File::create(&clustername)?;
 
             for _ in 0..args.samples {
@@ -82,6 +83,8 @@ fn main() -> std::io::Result<()> {
                 }
                 hk.write_cluster_sizes(&mut output)?;
             }
+
+            hk.write_density(&mut density)?;
 
             drop(output);
             Command::new("gzip")
