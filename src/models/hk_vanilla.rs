@@ -248,8 +248,12 @@ impl HegselmannKrause {
     pub fn fill_density(&mut self) {
         let mut j = self.time;
         while j < THRESHOLD {
-            for i in 0..DENSITYBINS {
-                self.dynamic_density[j][i] += self.density_slice[i];
+            if self.dynamic_density.len() <= j {
+                self.dynamic_density.push(self.density_slice.clone());
+            } else {
+                for i in 0..DENSITYBINS {
+                    self.dynamic_density[j][i] += self.density_slice[i];
+                }
             }
             j += 1;
         }
