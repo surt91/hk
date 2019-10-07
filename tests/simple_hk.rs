@@ -21,15 +21,14 @@ mod tests {
     }
 
     #[test]
-    fn test_cmp_naive_cell() {
+    fn test_cmp_sync() {
         let mut hk1 = HegselmannKrause::new(100, 0., 1., 13);
         let mut hk2 = HegselmannKrause::new(100, 0., 1., 13);
         for _ in 0..100 {
-            // println!("{}", i);
-            hk1.step_naive();
-            hk2.step_cells();
+            hk1.sweep_synchronous_naive();
+            hk2.sweep_synchronous_bisect();
             // println!("naive:  {:?}", hk1);
-            // println!("cell:   {:?}", hk2);
+            // println!("bisect: {:?}", hk2);
             assert!(hk1 == hk2);
         }
     }

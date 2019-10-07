@@ -161,7 +161,7 @@ impl HegselmannKrause {
         self.time += 1;
     }
 
-    fn sync_new_opinions(&self) -> (Vec<f32>, f32) {
+    fn sync_new_opinions_naive(&self) -> (Vec<f32>, f32) {
         let mut acc_change = 0.;
         let op = self.agents.iter().map(|i| {
             let mut tmp = 0.;
@@ -171,6 +171,7 @@ impl HegselmannKrause {
                 tmp += j.opinion;
                 count += 1;
             }
+
             tmp /= count as f32;
             acc_change += (tmp - i.opinion).abs();
             tmp
@@ -178,13 +179,53 @@ impl HegselmannKrause {
         (op, acc_change)
     }
 
-    pub fn sweep_synchronous(&mut self) {
-        let (new_opinions, acc_change) = self.sync_new_opinions();
+    pub fn sweep_synchronous_naive(&mut self) {
+        let (new_opinions, acc_change) = self.sync_new_opinions_naive();
         self.acc_change += acc_change;
         for i in 0..self.num_agents as usize {
-            self.agents[i].opinion =  new_opinions[i];
+            self.agents[i].opinion = new_opinions[i];
         }
         self.add_state_to_density()
+    }
+
+    fn sync_new_opinions_bisect(&self) -> (Vec<f32>, f32) {
+        let mut acc_change = 0.;
+        let op = self.agents.clone().iter().map(|i| {
+            let (sum, count) = self.opinion_set
+                .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
+                .map(|(j, ctr)| (j.into_inner(), ctr))
+                .fold((0., 0), |(sum, count), (j, ctr)| (sum + *ctr as f32 * j, count + ctr));
+
+            let new_opinion = sum / count as f32;
+            acc_change += (new_opinion - i.opinion).abs();
+            new_opinion
+        }).collect();
+
+        (op, acc_change)
+    }
+
+    pub fn sweep_synchronous_bisect(&mut self) {
+        let (new_opinions, acc_change) = self.sync_new_opinions_bisect();
+        self.acc_change += acc_change;
+
+        for i in 0..self.num_agents as usize {
+            // often, nothing changes -> optimize for this converged case
+            let old = self.agents[i].opinion;
+            if self.agents[i].opinion != new_opinions[i] {
+                *self.opinion_set.entry(OrderedFloat(self.agents[i].opinion)).or_insert_with(|| panic!(format!("The old opinion is not in the tree: This should never happen! {}", old))) -= 1;
+                if self.opinion_set[&OrderedFloat(self.agents[i].opinion)] == 0 {
+                    self.opinion_set.remove(&OrderedFloat(self.agents[i].opinion));
+                }
+                *self.opinion_set.entry(OrderedFloat(new_opinions[i])).or_insert(0) += 1;
+
+                self.agents[i].opinion = new_opinions[i];
+            }
+        }
+        self.add_state_to_density()
+    }
+
+    pub fn sweep_synchronous(&mut self) {
+        self.sweep_synchronous_bisect()
     }
 
     /// A cluster are agents whose distance is less than EPS
