@@ -10,7 +10,10 @@ use itertools::Itertools;
 
 use ordered_float::OrderedFloat;
 
-const EPS: f32 = 1e-6;
+/// maximal time to save density information for
+const THRESHOLD: usize = 4000;
+const EPS: f32 = 1e-4;
+const DENSITYBINS: usize = 100;
 
 #[derive(Clone, Debug)]
 struct HKAgent {
@@ -44,6 +47,8 @@ pub struct HegselmannKrause {
     opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
     dynamic_density: Vec<Vec<u64>>,
+
+    density_slice: Vec<u64>,
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
     rng: Pcg64,
@@ -80,6 +85,7 @@ impl HegselmannKrause {
             opinion_set,
             acc_change: 0.,
             dynamic_density,
+            density_slice: vec![0; DENSITYBINS],
             rng,
         };
 
@@ -219,16 +225,33 @@ impl HegselmannKrause {
     }
 
     fn add_state_to_density(&mut self) {
-        let mut slice = vec![0; 100];
+        if self.time > THRESHOLD {
+            return
+        }
+
+        for i in 0..DENSITYBINS {
+            self.density_slice[i] = 0;
+        }
+
         for i in &self.agents {
-            slice[(i.opinion*100.) as usize] += 1;
+            self.density_slice[(i.opinion*DENSITYBINS as f32) as usize] += 1;
         }
         if self.dynamic_density.len() <= self.time {
-            self.dynamic_density.push(slice);
+            self.dynamic_density.push(self.density_slice.clone());
         } else {
-            for i in 0..100 {
-                self.dynamic_density[self.time][i] += slice[i];
+            for i in 0..DENSITYBINS {
+                self.dynamic_density[self.time][i] += self.density_slice[i];
             }
+        }
+    }
+
+    pub fn fill_density(&mut self) {
+        let mut j = self.time;
+        while j < THRESHOLD {
+            for i in 0..DENSITYBINS {
+                self.dynamic_density[j][i] += self.density_slice[i];
+            }
+            j += 1;
         }
     }
 

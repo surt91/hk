@@ -77,35 +77,24 @@ fn main() -> std::io::Result<()> {
 
             for _ in 0..args.samples {
                 hk.reset();
-                if args.iterations == 0 {
-                    let mut ctr = 0;
-                    loop {
-                        // test if we are converged
-                        ctr += 1;
-                        
-                        if args.sync {
-                            hk.sweep_synchronous();
-                        } else {
-                            hk.sweep();
-                        }
 
-                        if hk.acc_change < 1e-4 {
-                            write!(output, "# sweeps: {}\n", ctr)?;
-                            break;
-                        }
-                        hk.acc_change = 0.;
-                    }
-                } else {
-                    let mut ctr = 0;
-                    for _ in 0..args.iterations {
-                        ctr += 1;
+                let mut ctr = 0;
+                loop {
+                    // test if we are converged
+                    ctr += 1;
+
+                    if args.sync {
+                        hk.sweep_synchronous();
+                    } else {
                         hk.sweep();
-                        if hk.acc_change < 1e-4 {
-                            break;
-                        }
-                        hk.acc_change = 0.;
                     }
-                    write!(output, "# sweeps: {}\n", ctr)?;
+
+                    if hk.acc_change < 1e-3 || (args.iterations > 0 && ctr > args.iterations) {
+                        write!(output, "# sweeps: {}\n", ctr)?;
+                        hk.fill_density();
+                        break;
+                    }
+                    hk.acc_change = 0.;
                 }
                 hk.write_cluster_sizes(&mut output)?;
             }
