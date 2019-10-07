@@ -155,6 +155,32 @@ impl HegselmannKrause {
         self.time += 1;
     }
 
+    fn sync_new_opinions(&self) -> (Vec<f32>, f32) {
+        let mut acc_change = 0.;
+        let op = self.agents.iter().map(|i| {
+            let mut tmp = 0.;
+            let mut count = 0;
+            for j in self.agents.iter()
+                    .filter(|j| (i.opinion - j.opinion).abs() < i.tolerance) {
+                tmp += j.opinion;
+                count += 1;
+            }
+            tmp /= count as f32;
+            acc_change += (tmp - i.opinion).abs();
+            tmp
+        }).collect();
+        (op, acc_change)
+    }
+
+    pub fn sweep_synchronous(&mut self) {
+        let (new_opinions, acc_change) = self.sync_new_opinions();
+        self.acc_change += acc_change;
+        for i in 0..self.num_agents as usize {
+            self.agents[i].opinion =  new_opinions[i];
+        }
+        self.add_state_to_density()
+    }
+
     /// A cluster are agents whose distance is less than EPS
     fn list_clusters(&self) -> Vec<Vec<HKAgent>> {
         let mut clusters: Vec<Vec<HKAgent>> = Vec::new();

@@ -15,33 +15,46 @@ struct Opt {
     #[structopt(short, long)]
     /// number of interacting agents
     num_agents: u32,
+
     #[structopt(short, long, default_value = "2")]
     /// number of dimensions (only for Lorenz modification)
     dimension: u32,
+
     #[structopt(short = "l", long, default_value = "0.0")]
     /// minimum tolerance of agents (uniformly distributed)
     min_tolerance: f64,
+
     #[structopt(short = "u", long, default_value = "1.0")]
     /// maximum tolerance of agents (uniformly distributed)
     max_tolerance: f64,
+
     #[structopt(short = "r", long, default_value = "5")]
     /// start resources for HKAC
     start_resources: f64,
+
     #[structopt(short, long, default_value = "1")]
     /// seed to use for the simulation
     seed: u64,
+
     #[structopt(short, long, default_value = "100")]
     /// number of sweeps to run the simulation
     iterations: u64,
+
+    #[structopt(long)]
+    /// synchronous update instead of random sequential
+    sync: bool,
+
     #[structopt(long, default_value = "1")]
     /// number of times to repeat the simulation
     samples: u32,
     #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3"])]
+
     /// which model to simulate:
     /// 1 -> Hegselmann Krause,
     /// 2 -> multidimensional Hegselmann Krause (Lorenz)
     /// 3 -> HK with active cost
     model: u32,
+
     #[structopt(short, long, default_value = "out", parse(from_os_str))]
     /// name of the output data file
     outname: std::path::PathBuf,
@@ -69,7 +82,13 @@ fn main() -> std::io::Result<()> {
                     loop {
                         // test if we are converged
                         ctr += 1;
-                        hk.sweep();
+                        
+                        if args.sync {
+                            hk.sweep_synchronous();
+                        } else {
+                            hk.sweep();
+                        }
+
                         if hk.acc_change < 1e-4 {
                             write!(output, "# sweeps: {}\n", ctr)?;
                             break;
