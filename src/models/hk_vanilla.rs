@@ -225,7 +225,8 @@ impl HegselmannKrause {
     }
 
     pub fn sweep_synchronous(&mut self) {
-        self.sweep_synchronous_bisect()
+        self.sweep_synchronous_bisect();
+        self.time += 1;
     }
 
     /// A cluster are agents whose distance is less than EPS
