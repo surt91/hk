@@ -89,7 +89,7 @@ fn main() -> std::io::Result<()> {
                         hk.sweep();
                     }
 
-                    if hk.acc_change < 1e-3 || (args.iterations > 0 && ctr > args.iterations) {
+                    if hk.acc_change < 1e-4 || (args.iterations > 0 && ctr > args.iterations) {
                         write!(output, "# sweeps: {}\n", ctr)?;
                         hk.fill_density();
                         break;
