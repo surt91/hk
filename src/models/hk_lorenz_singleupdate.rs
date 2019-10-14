@@ -9,48 +9,18 @@ use rand_pcg::Pcg64;
 use rand_distr::Dirichlet;
 use itertools::Itertools;
 
+use super::hk_lorenz::HKLorenzAgent;
+
 const EPS: f32 = 1e-6;
 
-#[derive(Clone, Debug)]
-pub struct HKLorenzAgent {
-    pub opinion: Vec<f32>,
-    pub tolerance: f32,
-}
 
-impl HKLorenzAgent {
-    pub fn new(opinion: Vec<f32>, tolerance: f32) -> HKLorenzAgent {
-        HKLorenzAgent {
-            opinion,
-            tolerance,
-        }
-    }
-
-    pub fn dist(&self, other: &HKLorenzAgent) -> f32 {
-        assert!(self.opinion.len() == other.opinion.len());
-        self.opinion.iter()
-            .zip(&other.opinion)
-            .map(|(a, b)| (a-b)*(a-b))
-            .sum::<f32>()
-            .sqrt()
-    }
-}
-
-impl PartialEq for HKLorenzAgent {
-    fn eq(&self, other: &HKLorenzAgent) -> bool {
-        // (self.opinion - other.opinion).abs() < EPS
-            // && (self.tolerance - other.tolerance).abs() < EPS
-        (self.tolerance - other.tolerance).abs() < EPS
-    }
-}
-
-pub struct HegselmannKrauseLorenz {
+pub struct HegselmannKrauseLorenzSingle {
     num_agents: u32,
     dimension: u32,
     agents: Vec<HKLorenzAgent>,
     min_tolerance: f32,
     max_tolerance: f32,
 
-    tmp: Vec<f32>,
     pub acc_change: f32,
     dirichlet: Dirichlet<f32>,
 
@@ -61,33 +31,32 @@ pub struct HegselmannKrauseLorenz {
     rng: Pcg64,
 }
 
-impl PartialEq for HegselmannKrauseLorenz {
-    fn eq(&self, other: &HegselmannKrauseLorenz) -> bool {
+impl PartialEq for HegselmannKrauseLorenzSingle {
+    fn eq(&self, other: &HegselmannKrauseLorenzSingle) -> bool {
         self.agents == other.agents
     }
 }
 
-impl fmt::Debug for HegselmannKrauseLorenz {
+impl fmt::Debug for HegselmannKrauseLorenzSingle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "HKL {{ N: {}, agents: {:?} }}", self.num_agents, self.agents)
     }
 }
 
-impl HegselmannKrauseLorenz {
-    pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, dim: u32, seed: u64) -> HegselmannKrauseLorenz {
+impl HegselmannKrauseLorenzSingle {
+    pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, dim: u32, seed: u64) -> HegselmannKrauseLorenzSingle {
         let rng = Pcg64::seed_from_u64(seed);
         let dirichlet = Dirichlet::new_with_size(1.0, dim as usize).unwrap();
         let agents: Vec<HKLorenzAgent> = Vec::new();
 
         let dynamic_density =  Vec::new();
 
-        let mut hk = HegselmannKrauseLorenz {
+        let mut hk = HegselmannKrauseLorenzSingle {
             num_agents: n,
             dimension: dim,
             agents,
             min_tolerance,
             max_tolerance,
-            tmp: vec![0.; dim as usize],
             acc_change: 0.,
             dirichlet,
             dynamic_density,
@@ -104,7 +73,7 @@ impl HegselmannKrauseLorenz {
     pub fn reset(&mut self) {
         self.agents = (0..self.num_agents).map(|_| HKLorenzAgent::new(
             self.dirichlet.sample(&mut self.rng),
-            HegselmannKrauseLorenz::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance)
+            HegselmannKrauseLorenzSingle::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance)
         )).collect();
 
         self.dynamic_density = vec![Vec::new(); self.dimension as usize];
@@ -117,25 +86,40 @@ impl HegselmannKrauseLorenz {
         let i = &self.agents[idx];
 
         // reset our allocated temporary vector
-        for j in 0..self.dimension as usize {
-            self.tmp[j] = 0.0;
-        }
+        let mut tmp = 0.0;
         let mut count = 0;
 
+        // get a random dimension and assign the mean of the neighbors
+        // opinion in this aspect
+        // then modifiy the other opinions to preserve the bounds on the opinion values
+        let chosen_dim = (self.rng.gen::<f32>() * self.dimension as f32) as usize;
         for j in self.agents.iter()
                 .filter(|j| i.dist(j) < i.tolerance) {
-            for k in 0..self.dimension as usize {
-                self.tmp[k] += j.opinion[k];
-            }
+            tmp += j.opinion[chosen_dim];
             count += 1;
         }
 
+        tmp /= count as f32;
+        self.acc_change += (tmp - i.opinion[chosen_dim]).abs();
+
+        let tmp2 = i.opinion.clone();
+        self.agents[idx].opinion[chosen_dim] = tmp;
+        let diff = 1. - self.agents[idx].opinion.iter().sum::<f32>();
+        let sum = self.agents[idx].opinion.iter()
+            .enumerate()
+            .filter(|(n, _)| n != &chosen_dim)
+            .map(|(_, x)| x)
+            .sum::<f32>();
+
         for j in 0..self.dimension as usize {
-            self.tmp[j] /= count as f32;
-            self.acc_change += (self.tmp[j] - self.agents[idx].opinion[j]).abs();
+            if j == chosen_dim {
+                continue;
+            }
+            self.agents[idx].opinion[j] += diff * tmp2[j]/sum;
+            assert!(self.agents[idx].opinion[j] <= 1. && self.agents[idx].opinion[j] >= 0.);
         }
 
-        mem::swap(&mut self.agents[idx].opinion, &mut self.tmp);
+        assert!((1. - self.agents[idx].opinion.iter().sum::<f32>()).abs() < 1e-6);
     }
 
     pub fn sweep(&mut self) {
@@ -201,7 +185,8 @@ impl HegselmannKrauseLorenz {
         for d in 0..self.dimension as usize {
             let mut slice = vec![0; 100];
             for i in &self.agents {
-                slice[(i.opinion[d]*100.) as usize] += 1;
+                // subtract a little bit to avoid problems if opinion is 1
+                slice[(i.opinion[d]*100.-1e-4) as usize] += 1;
             }
             self.dynamic_density[d].push(slice);
         }

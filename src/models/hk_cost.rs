@@ -16,65 +16,42 @@ const EPS: f32 = 1e-5;
 const DENSITYBINS: usize = 100;
 
 #[derive(Clone, Debug)]
-pub struct HKAgent {
-    pub opinion: f32,
-    pub tolerance: f32,
-    pub initial_opinion: f32,
+struct HKAgentCost {
+    opinion: f32,
+    tolerance: f32,
+    resources: f32,
+    initial_opinion: f32,
 }
 
-impl HKAgent {
-    fn new(opinion: f32, tolerance: f32) -> HKAgent {
-        HKAgent {
+impl HKAgentCost {
+    fn new(opinion: f32, tolerance: f32, resources: f32) -> HKAgentCost {
+        HKAgentCost {
             opinion,
             tolerance,
-            initial_opinion: opinion
+            resources,
+            initial_opinion: opinion,
         }
     }
 }
 
-impl PartialEq for HKAgent {
-    fn eq(&self, other: &HKAgent) -> bool {
+impl PartialEq for HKAgentCost {
+    fn eq(&self, other: &HKAgentCost) -> bool {
         (self.opinion - other.opinion).abs() < EPS
             && (self.tolerance - other.tolerance).abs() < EPS
     }
 }
-//
-// trait Agent {
-//
-// }
-//
-// trait UpdateSync {
-//
-// }
-//
-// trait UpdateSeq {
-//
-// }
-//
-// trait Model: UpdateSync + UpdateSeq {
-//     fn sweep_seq(&mut self);
-//     fn sweep_sync(&mut self);
-//
-//     fn new() -> Self;
-//     fn reset(&mut self);
-//
-//     fn agents() -> impl Iterator<Item = HKAgent>;
-//
-//     fn list_clusters(&self);
-//     fn cluster_sizes(&self);
-//     fn density(&self);
-// }
 
-pub struct HegselmannKrause {
-    pub num_agents: u32,
-    pub agents: Vec<HKAgent>,
-    pub time: usize,
+pub struct HegselmannKrauseCost {
+    num_agents: u32,
+    agents: Vec<HKAgentCost>,
+    time: usize,
     min_tolerance: f32,
     max_tolerance: f32,
+    eta: f32,
+    min_resources: f32,
+    max_resources: f32,
 
-    pub eta: f32,
-
-    pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
+    opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
     dynamic_density: Vec<Vec<u64>>,
 
@@ -84,35 +61,45 @@ pub struct HegselmannKrause {
     rng: Pcg64,
 }
 
-impl PartialEq for HegselmannKrause {
-    fn eq(&self, other: &HegselmannKrause) -> bool {
+impl PartialEq for HegselmannKrauseCost {
+    fn eq(&self, other: &HegselmannKrauseCost) -> bool {
         self.agents == other.agents
     }
 }
 
-impl fmt::Debug for HegselmannKrause {
+impl fmt::Debug for HegselmannKrauseCost {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "HK {{ N: {}, agents: {:?} }}", self.num_agents, self.agents)
     }
 }
 
-impl HegselmannKrause {
-    pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, eta: f32, seed: u64) -> HegselmannKrause {
+impl HegselmannKrauseCost {
+    pub fn new(
+            n: u32,
+            min_tolerance: f32,
+            max_tolerance: f32,
+            eta: f32,
+            min_resources: f32,
+            max_resources: f32,
+            seed: u64
+    ) -> HegselmannKrauseCost {
         let rng = Pcg64::seed_from_u64(seed);
-        let agents: Vec<HKAgent> = Vec::new();
+        let agents: Vec<HKAgentCost> = Vec::new();
 
         // datastructure for `step_bisect`
         let opinion_set = BTreeMap::new();
 
         let dynamic_density = Vec::new();
 
-        let mut hk = HegselmannKrause {
+        let mut hk = HegselmannKrauseCost {
             num_agents: n,
             agents,
             time: 0,
             min_tolerance,
             max_tolerance,
             eta,
+            min_resources,
+            max_resources,
             opinion_set,
             acc_change: 0.,
             dynamic_density,
@@ -129,9 +116,10 @@ impl HegselmannKrause {
     }
 
     pub fn reset(&mut self) {
-        self.agents = (0..self.num_agents).map(|_| HKAgent::new(
+        self.agents = (0..self.num_agents).map(|_| HKAgentCost::new(
             self.rng.gen(),
-            HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance)
+            HegselmannKrauseCost::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
+            HegselmannKrauseCost::stretch(self.rng.gen(), self.min_resources, self.max_resources)
         )).collect();
 
         self.opinion_set.clear();
@@ -141,19 +129,6 @@ impl HegselmannKrause {
         assert!(self.opinion_set.iter().map(|(_, v)| v).sum::<u32>() == self.num_agents);
 
         self.time = 0;
-    }
-
-    pub fn step_naive(&mut self) {
-        // get a random agent
-        let idx = self.rng.gen_range(0, self.num_agents) as usize;
-        let i = &self.agents[idx];
-
-        let (sum, count) = self.agents.iter()
-            .map(|j| j.opinion)
-            .filter(|j| (i.opinion - j).abs() < i.tolerance)
-            .fold((0., 0), |(sum, count), i| (sum + i, count + 1));
-
-        self.agents[idx].opinion = sum / count as f32;
     }
 
     pub fn step_bisect(&mut self) {
@@ -166,7 +141,23 @@ impl HegselmannKrause {
             .map(|(j, ctr)| (j.into_inner(), ctr))
             .fold((0., 0), |(sum, count), (j, ctr)| (sum + *ctr as f32 * j, count + ctr));
 
-        let new_opinion = sum / count as f32;
+        let mut new_opinion = (1.-self.eta) * sum / count as f32 + self.eta*i.opinion;
+
+        if idx == 3 {
+            println!("{:?} -> {:?}", i.opinion, new_opinion);
+        }
+
+        // pay a cost
+        let mut new_resources = i.resources;
+        new_resources -= self.eta * (i.opinion - new_opinion).abs();
+        if new_resources < 0. {
+            if i.opinion > new_opinion {
+                new_opinion -= new_resources / self.eta;
+            } else {
+                new_opinion += new_resources / self.eta;
+            }
+            new_resources = 0.;
+        }
 
         // often, nothing changes -> optimize for this converged case
         if i.opinion == new_opinion {
@@ -180,7 +171,9 @@ impl HegselmannKrause {
         *self.opinion_set.entry(OrderedFloat(new_opinion)).or_insert(0) += 1;
 
         self.acc_change += (i.opinion - new_opinion).abs();
+
         self.agents[idx].opinion = new_opinion;
+        self.agents[idx].resources = new_resources;
     }
 
     pub fn sweep(&mut self) {
@@ -192,34 +185,7 @@ impl HegselmannKrause {
         self.time += 1;
     }
 
-    fn sync_new_opinions_naive(&self) -> (Vec<f32>, f32) {
-        let mut acc_change = 0.;
-        let op = self.agents.iter().map(|i| {
-            let mut tmp = 0.;
-            let mut count = 0;
-            for j in self.agents.iter()
-                    .filter(|j| (i.opinion - j.opinion).abs() < i.tolerance) {
-                tmp += j.opinion;
-                count += 1;
-            }
-
-            tmp /= count as f32;
-            acc_change += (tmp - i.opinion).abs();
-            tmp
-        }).collect();
-        (op, acc_change)
-    }
-
-    pub fn sweep_synchronous_naive(&mut self) {
-        let (new_opinions, acc_change) = self.sync_new_opinions_naive();
-        self.acc_change += acc_change;
-        for i in 0..self.num_agents as usize {
-            self.agents[i].opinion = new_opinions[i];
-        }
-        self.add_state_to_density()
-    }
-
-    fn sync_new_opinions_bisect(&self) -> (Vec<f32>, f32) {
+    fn sync_new_opinions_bisect(&self) -> (Vec<(f32, f32)>, f32) {
         let mut acc_change = 0.;
         let op = self.agents.clone().iter().map(|i| {
             let (sum, count) = self.opinion_set
@@ -227,17 +193,32 @@ impl HegselmannKrause {
                 .map(|(j, ctr)| (j.into_inner(), ctr))
                 .fold((0., 0), |(sum, count), (j, ctr)| (sum + *ctr as f32 * j, count + ctr));
 
-            let new_opinion = sum / count as f32;
+            let mut new_opinion = (1.-self.eta) * sum / count as f32 + self.eta*i.opinion;
+
+            // pay a cost
+            let mut new_resources = i.resources;
+            new_resources -= self.eta * (i.opinion - new_opinion).abs();
+            if new_resources < 0. {
+                if i.opinion > new_opinion {
+                    new_opinion -= new_resources / self.eta;
+                } else {
+                    new_opinion += new_resources / self.eta;
+                }
+                new_resources = 0.;
+            }
+
             acc_change += (new_opinion - i.opinion).abs();
-            new_opinion
+            (new_opinion, new_resources)
         }).collect();
 
         (op, acc_change)
     }
 
     pub fn sweep_synchronous_bisect(&mut self) {
-        let (new_opinions, acc_change) = self.sync_new_opinions_bisect();
+        let (new_opinions_and_resources, acc_change) = self.sync_new_opinions_bisect();
         self.acc_change += acc_change;
+        let new_opinions: Vec<f32> = new_opinions_and_resources.iter().map(|(x, _)| *x).collect();
+        let new_resources: Vec<f32> = new_opinions_and_resources.iter().map(|(_, x)| *x).collect();
 
         for i in 0..self.num_agents as usize {
             // often, nothing changes -> optimize for this converged case
@@ -249,7 +230,13 @@ impl HegselmannKrause {
                 }
                 *self.opinion_set.entry(OrderedFloat(new_opinions[i])).or_insert(0) += 1;
 
+                // if i == 3 {
+                //     println!("r {:?} -> {:?}", self.agents[i].resources, new_resources[i]);
+                //     println!("o {:?} -> {:?}", self.agents[i].opinion, new_opinions[i]);
+                // }
+
                 self.agents[i].opinion = new_opinions[i];
+                self.agents[i].resources = new_resources[i];
             }
         }
         self.add_state_to_density()
@@ -261,8 +248,8 @@ impl HegselmannKrause {
     }
 
     /// A cluster are agents whose distance is less than EPS
-    fn list_clusters(&self) -> Vec<Vec<HKAgent>> {
-        let mut clusters: Vec<Vec<HKAgent>> = Vec::new();
+    fn list_clusters(&self) -> Vec<Vec<HKAgentCost>> {
+        let mut clusters: Vec<Vec<HKAgentCost>> = Vec::new();
         'agent: for i in &self.agents {
             for c in &mut clusters {
                 if (i.opinion - &c[0].opinion).abs() < EPS {
@@ -297,7 +284,7 @@ impl HegselmannKrause {
         Ok(())
     }
 
-    pub fn add_state_to_density(&mut self) {
+    fn add_state_to_density(&mut self) {
         if self.time > THRESHOLD {
             return
         }
@@ -337,25 +324,5 @@ impl HegselmannKrause {
             .map(|x| x.iter().join(" "))
             .join("\n");
         write!(file, "{}\n", string_list)
-    }
-
-    pub fn write_state(&self, file: &mut File) -> std::io::Result<()> {
-        let string_list = self.agents.iter()
-            .map(|j| j.opinion.to_string())
-            .join(" ");
-        write!(file, "{}\n", string_list)
-    }
-
-    pub fn write_gp(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {
-        write!(file, "set terminal pngcairo\n")?;
-        write!(file, "set output '{}.png'\n", outfilename)?;
-        write!(file, "set xl 't'\n")?;
-        write!(file, "set yl 'x_i'\n")?;
-        write!(file, "p '{}' u 0:1 w l not, ", outfilename)?;
-
-        let string_list = (2..self.num_agents)
-            .map(|j| format!("'' u 0:{} w l not,", j))
-            .join(" ");
-        write!(file, "{}", string_list)
     }
 }
