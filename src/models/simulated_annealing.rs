@@ -52,13 +52,8 @@ impl Model for HegselmannKrause {
         // }
         let new_x = rng.gen::<f32>();
 
-        *self.opinion_set.entry(OrderedFloat(i.opinion)).or_insert_with(|| panic!("todo")) -= 1;
-        if self.opinion_set[&OrderedFloat(i.opinion)] == 0 {
-            self.opinion_set.remove(&OrderedFloat(i.opinion));
-        }
-        *self.opinion_set.entry(OrderedFloat(new_x)).or_insert(0) += 1;
+        self.update_entry(i.opinion, new_x);
 
-        self.acc_change += (i.opinion - new_x).abs();
         self.agents[idx].opinion = new_x;
 
         (idx, old_x)
@@ -68,13 +63,8 @@ impl Model for HegselmannKrause {
         let (idx, old_x) = undo_info;
         let i = &self.agents[idx];
 
-        *self.opinion_set.entry(OrderedFloat(i.opinion)).or_insert_with(|| panic!("todo")) -= 1;
-        if self.opinion_set[&OrderedFloat(i.opinion)] == 0 {
-            self.opinion_set.remove(&OrderedFloat(i.opinion));
-        }
-        *self.opinion_set.entry(OrderedFloat(old_x)).or_insert(0) += 1;
+        self.update_entry(i.opinion, old_x);
 
-        self.acc_change += (i.opinion - old_x).abs();
         self.agents[idx].opinion = old_x;
     }
 

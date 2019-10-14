@@ -143,6 +143,19 @@ impl HegselmannKrause {
         self.time = 0;
     }
 
+    pub fn update_entry(&mut self, old: f32, new: f32) {
+        // often, nothing changes -> optimize for this converged case
+        if old == new {
+            return
+        }
+
+        *self.opinion_set.entry(OrderedFloat(old)).or_insert_with(|| panic!("todo")) -= 1;
+        if self.opinion_set[&OrderedFloat(old)] == 0 {
+            self.opinion_set.remove(&OrderedFloat(old));
+        }
+        *self.opinion_set.entry(OrderedFloat(new)).or_insert(0) += 1;
+    }
+
     pub fn step_naive(&mut self) {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
@@ -168,18 +181,9 @@ impl HegselmannKrause {
 
         let new_opinion = sum / count as f32;
 
-        // often, nothing changes -> optimize for this converged case
-        if i.opinion == new_opinion {
-            return
-        }
-
-        *self.opinion_set.entry(OrderedFloat(i.opinion)).or_insert_with(|| panic!("todo")) -= 1;
-        if self.opinion_set[&OrderedFloat(i.opinion)] == 0 {
-            self.opinion_set.remove(&OrderedFloat(i.opinion));
-        }
-        *self.opinion_set.entry(OrderedFloat(new_opinion)).or_insert(0) += 1;
 
         self.acc_change += (i.opinion - new_opinion).abs();
+        self.update_entry(i.opinion, new_opinion);
         self.agents[idx].opinion = new_opinion;
     }
 
@@ -242,15 +246,9 @@ impl HegselmannKrause {
         for i in 0..self.num_agents as usize {
             // often, nothing changes -> optimize for this converged case
             let old = self.agents[i].opinion;
-            if self.agents[i].opinion != new_opinions[i] {
-                *self.opinion_set.entry(OrderedFloat(self.agents[i].opinion)).or_insert_with(|| panic!(format!("The old opinion is not in the tree: This should never happen! {}", old))) -= 1;
-                if self.opinion_set[&OrderedFloat(self.agents[i].opinion)] == 0 {
-                    self.opinion_set.remove(&OrderedFloat(self.agents[i].opinion));
-                }
-                *self.opinion_set.entry(OrderedFloat(new_opinions[i])).or_insert(0) += 1;
+            self.update_entry(old, new_opinions[i]);
 
-                self.agents[i].opinion = new_opinions[i];
-            }
+            self.agents[i].opinion = new_opinions[i];
         }
         self.add_state_to_density()
     }
