@@ -10,7 +10,7 @@ use hk::HegselmannKrauseCost;
 use hk::HegselmannKrauseAC;
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal,Exponential};
+use hk::{anneal,Exponential,Linear};
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
@@ -307,6 +307,7 @@ fn main() -> std::io::Result<()> {
 
             for _ in 0..args.samples {
                 let schedule = Exponential::new(520, 3., 0.98);
+                let schedule = Linear::new(200, 0.);
                 hk.reset();
                 anneal(&mut hk, schedule, &mut rng);
                 hk.write_cluster_sizes(&mut output)?;

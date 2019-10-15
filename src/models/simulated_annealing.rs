@@ -82,6 +82,39 @@ struct Powerlaw {
     state: f32
 }
 
+pub struct Linear {
+    count: usize,
+    limit: usize,
+    start: f32,
+    factor: f32
+}
+
+impl Linear {
+    pub fn new(limit: usize, start: f32) -> Linear {
+        Linear {
+            count: 0,
+            limit,
+            start,
+            factor: start / limit as f32 ,
+        }
+    }
+}
+
+impl Iterator for Linear {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.count += 1;
+        let state = self.start - self.factor * self.count as f32;
+
+        if self.count < self.limit {
+            Some(state)
+        } else {
+            None
+        }
+    }
+}
+
 pub struct Exponential {
     count: usize,
     limit: usize,
