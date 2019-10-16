@@ -6,11 +6,9 @@ use std::process::Command;
 use structopt::StructOpt;
 
 use hk::HegselmannKrause;
-use hk::HegselmannKrauseCost;
-use hk::HegselmannKrauseAC;
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal,Exponential,Linear};
+use hk::{anneal, Exponential, Linear, CostModel};
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
@@ -89,6 +87,9 @@ fn main() -> std::io::Result<()> {
                 args.num_agents,
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
+                0.,
+                CostModel::Free,
+                0.,
                 0.,
                 args.seed);
 
@@ -183,7 +184,16 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         3 => {
-            let mut hk = HegselmannKrauseAC::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.start_resources as f32, args.seed);
+            let mut hk = HegselmannKrause::new(
+                args.num_agents,
+                args.min_tolerance as f32,
+                args.max_tolerance as f32,
+                args.eta as f32,
+                CostModel::Rebounce,
+                args.min_tolerance as f32,
+                args.max_tolerance as f32,
+                args.seed
+            );
 
             // let outname = args.outname.with_extension("dat");
             // let mut gp = File::create(args.outname.with_extension("gp"))?;
@@ -238,13 +248,14 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         5 => {
-            let mut hk = HegselmannKrauseCost::new(
+            let mut hk = HegselmannKrause::new(
                 args.num_agents,
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
                 args.eta as f32,
-                args.min_resources as f32,
-                args.max_resources as f32,
+                CostModel::Change,
+                args.min_tolerance as f32,
+                args.max_tolerance as f32,
                 args.seed
             );
 
@@ -296,6 +307,9 @@ fn main() -> std::io::Result<()> {
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
                 args.eta as f32,
+                CostModel::Free,
+                args.min_tolerance as f32,
+                args.max_tolerance as f32,
                 args.seed
             );
 
@@ -307,7 +321,8 @@ fn main() -> std::io::Result<()> {
 
             for _ in 0..args.samples {
                 let schedule = Exponential::new(520, 3., 0.98);
-                let schedule = Linear::new(200, 0.);
+                // let schedule = Linear::new(520, 0.1);
+                // let schedule = Linear::new(520, 0.);
                 hk.reset();
                 anneal(&mut hk, schedule, &mut rng);
                 hk.write_cluster_sizes(&mut output)?;

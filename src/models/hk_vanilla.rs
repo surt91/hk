@@ -15,19 +15,28 @@ const THRESHOLD: usize = 4000;
 const EPS: f32 = 1e-5;
 const DENSITYBINS: usize = 100;
 
+#[derive(PartialEq)]
+pub enum CostModel {
+    Rebounce,
+    Change,
+    Free,
+}
+
 #[derive(Clone, Debug)]
 pub struct HKAgent {
     pub opinion: f32,
     pub tolerance: f32,
     pub initial_opinion: f32,
+    pub resources: f32,
 }
 
 impl HKAgent {
-    fn new(opinion: f32, tolerance: f32) -> HKAgent {
+    fn new(opinion: f32, tolerance: f32, resources: f32) -> HKAgent {
         HKAgent {
             opinion,
             tolerance,
-            initial_opinion: opinion
+            initial_opinion: opinion,
+            resources,
         }
     }
 }
@@ -65,6 +74,8 @@ impl PartialEq for HKAgent {
 //     fn density(&self);
 // }
 
+// TODO: at some point I should use a builder pattern to make this less ugly
+
 pub struct HegselmannKrause {
     pub num_agents: u32,
     pub agents: Vec<HKAgent>,
@@ -72,7 +83,10 @@ pub struct HegselmannKrause {
     min_tolerance: f32,
     max_tolerance: f32,
 
+    cost_model: CostModel,
     pub eta: f32,
+    min_resources: f32,
+    max_resources: f32,
 
     pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
@@ -100,7 +114,7 @@ impl fmt::Debug for HegselmannKrause {
 }
 
 impl HegselmannKrause {
-    pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, eta: f32, seed: u64) -> HegselmannKrause {
+    pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, eta: f32, cost_model: CostModel, min_resources: f32, max_resources: f32, seed: u64) -> HegselmannKrause {
         let rng = Pcg64::seed_from_u64(seed);
         let agents: Vec<HKAgent> = Vec::new();
 
@@ -115,7 +129,10 @@ impl HegselmannKrause {
             time: 0,
             min_tolerance,
             max_tolerance,
+            cost_model,
             eta,
+            min_resources,
+            max_resources,
             opinion_set,
             acc_change: 0.,
             dynamic_density,
@@ -136,7 +153,8 @@ impl HegselmannKrause {
     pub fn reset(&mut self) {
         self.agents = (0..self.num_agents).map(|_| HKAgent::new(
             self.rng.gen(),
-            HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance)
+            HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
+            HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
         )).collect();
 
         self.opinion_set.clear();
@@ -161,6 +179,37 @@ impl HegselmannKrause {
         *self.opinion_set.entry(OrderedFloat(new)).or_insert(0) += 1;
     }
 
+    pub fn pay(&mut self, idx: usize, mut new_opinion: f32) -> (f32, f32)  {
+        let i = &mut self.agents[idx];
+        let mut new_resources = i.resources;
+        match self.cost_model {
+            CostModel::Free => {},
+            CostModel::Rebounce => {
+                new_resources -= (i.initial_opinion - new_opinion).abs();
+                if new_resources < 0. {
+                    if i.initial_opinion > new_opinion {
+                        new_opinion -= new_resources;
+                    } else {
+                        new_opinion += new_resources;
+                    }
+                    new_resources = 0.;
+                }
+            }
+            CostModel::Change => {
+                new_resources -= self.eta * (i.opinion - new_opinion).abs();
+                if new_resources < 0. {
+                    if i.opinion > new_opinion {
+                        new_opinion -= new_resources / self.eta;
+                    } else {
+                        new_opinion += new_resources / self.eta;
+                    }
+                    new_resources = 0.;
+                }
+            }
+        }
+        (new_opinion, new_resources)
+    }
+
     pub fn step_naive(&mut self) {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
@@ -171,7 +220,12 @@ impl HegselmannKrause {
             .filter(|j| (i.opinion - j).abs() < i.tolerance)
             .fold((0., 0), |(sum, count), i| (sum + i, count + 1));
 
-        self.agents[idx].opinion = sum / count as f32;
+        let new_opinion = sum / count as f32;
+        let (new_opinion, new_resources) = self.pay(idx, new_opinion);
+
+        self.agents[idx].opinion = new_opinion;
+        self.agents[idx].resources = new_resources;
+
     }
 
     pub fn step_bisect(&mut self) {
@@ -186,10 +240,13 @@ impl HegselmannKrause {
 
         let new_opinion = sum / count as f32;
 
+        let old = i.opinion;
+        let (new_opinion, new_resources) = self.pay(idx, new_opinion);
 
-        self.acc_change += (i.opinion - new_opinion).abs();
-        self.update_entry(i.opinion, new_opinion);
+        self.acc_change += (old - new_opinion).abs();
+        self.update_entry(old, new_opinion);
         self.agents[idx].opinion = new_opinion;
+        self.agents[idx].resources = new_resources
     }
 
     pub fn sweep(&mut self) {
@@ -259,6 +316,9 @@ impl HegselmannKrause {
     }
 
     pub fn sweep_synchronous(&mut self) {
+        if self.cost_model != CostModel::Free {
+            panic!("synchronous update with limited resources is not yet implemented");
+        }
         self.sweep_synchronous_bisect();
         self.time += 1;
     }
