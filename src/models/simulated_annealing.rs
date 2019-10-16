@@ -20,7 +20,14 @@ use super::HegselmannKrause;
 pub trait Model {
     fn size(&self) -> usize;
     fn energy(&self) -> f32;
-    fn change<R>(&mut self, rng: &mut R) -> (usize, f32) where R: Rng;
+    fn energy_incremental(
+        &mut self,
+        current: usize,
+        old: f32,
+        new: f32,
+    ) -> f32;
+    fn init_ji(&mut self);
+    fn change<R>(&mut self, rng: &mut R) -> (usize, f32, f32) where R: Rng;
     fn undo(&mut self, undo_info: (usize, f32));
     fn notify_sweep(&mut self);
 }
@@ -39,7 +46,81 @@ impl Model for HegselmannKrause {
         }).sum()
     }
 
-    fn change<R>(&mut self, rng: &mut R) -> (usize, f32) where R: Rng {
+    fn init_ji(&mut self) {
+        self.ji = (0..self.num_agents as usize).map(|idx| {
+            let i = &self.agents[idx];
+
+            let (sum, count) = self.opinion_set
+                .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
+                .map(|(j, ctr)| (j.into_inner(), ctr))
+                .fold((0., 0), |(sum, count), (j, ctr)| (sum + *ctr as f32 * (j-i.opinion).powf(2.), count + ctr));
+
+            sum / count as f32 + self.eta*(i.opinion - i.initial_opinion).powf(2.)
+        }).collect();
+
+        self.jin = (0..self.num_agents as usize).map(|idx| {
+            let i = &self.agents[idx];
+
+            self.opinion_set
+                .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
+                .map(|(j, ctr)| *ctr as i32)
+                .sum()
+        }).collect();
+    }
+
+    // if we cache the single energies ji and the number of neighbors jin
+    // we can update J in linear time instead of quadratic (or cubic?)
+    // given the old and new opinion of a changed agent
+    fn energy_incremental(
+        &mut self,
+        current: usize,
+        old: f32,
+        new: f32,
+    ) -> f32 {
+        self.ji[current] = 0.;
+        self.jin[current] = 1;
+
+        for (idx, i) in self.agents.iter().enumerate() {
+            // also we influenced ourself before, so we have to remove ourself in any case
+            if idx == current {
+                continue
+            }
+
+            // first we need to remove the cost of being too far away from the start
+            self.ji[idx] -= (i.opinion - i.initial_opinion).powf(2.) * self.eta;
+
+            // if we had influence before, remove it
+            if (i.opinion - old).abs() < i.tolerance {
+                self.ji[idx] -= (i.opinion - old).powf(2.) / self.jin[idx] as f32;
+                self.ji[idx] *= self.jin[idx] as f32 / (self.jin[idx] - 1) as f32;
+                self.jin[idx] -= 1;
+            }
+
+            // if we have influence now, add it
+            if (i.opinion - new).abs() < i.tolerance {
+                self.jin[idx] += 1;
+                self.ji[idx] *= (self.jin[idx] - 1) as f32 / self.jin[idx] as f32;
+                self.ji[idx] += (i.opinion - new).powf(2.) / self.jin[idx] as f32;
+            }
+
+            // and calculate the energy for the agent which changes
+            if (i.opinion - new).abs() < self.agents[current].tolerance {
+                self.ji[current] += (i.opinion - new).powf(2.);
+                self.jin[current] += 1;
+            }
+
+            // in the end we have to reintroduce the cost of being too far away from the start
+            self.ji[idx] += (i.opinion - i.initial_opinion).powf(2.) * self.eta;
+        }
+
+
+        self.ji[current] /= self.jin[current] as f32;
+        self.ji[current] += self.eta*(new - self.agents[current].initial_opinion).powf(2.);
+
+        self.ji.iter().sum::<f32>()
+    }
+
+    fn change<R>(&mut self, rng: &mut R) -> (usize, f32, f32) where R: Rng {
         let idx: usize = (rng.gen::<f32>() * self.size() as f32) as usize;
         let i = &self.agents[idx];
 
@@ -56,7 +137,7 @@ impl Model for HegselmannKrause {
 
         self.agents[idx].opinion = new_x;
 
-        (idx, old_x)
+        (idx, old_x, new_x)
     }
 
     fn undo(&mut self, undo_info: (usize, f32)) {
@@ -148,18 +229,19 @@ impl Iterator for Exponential {
     }
 }
 
-
-
 pub fn anneal<T, S, R>(model: &mut T, schedule: S, mut rng: &mut R)
         where T: Model, S: Iterator<Item = f32>, R: Rng {
     let mut e_before = model.energy();
+    model.init_ji();
 
     for t in schedule {
         let mut tries = 0;
         let mut reject = 0;
         for _ in 0..model.size() {
-            let undo_info = model.change(&mut rng);
-            let e_after = model.energy();
+            let (idx, old, new) = model.change(&mut rng);
+            let undo_info = (idx, old);
+            // let e_after = model.energy();
+            let e_after = model.energy_incremental(idx, old, new);
             tries += 1;
             if ((e_after - e_before) / t).exp() < rng.gen() {
                 model.undo(undo_info);

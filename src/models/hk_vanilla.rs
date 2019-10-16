@@ -78,6 +78,9 @@ pub struct HegselmannKrause {
     pub acc_change: f32,
     dynamic_density: Vec<Vec<u64>>,
 
+    pub ji: Vec<f32>,
+    pub jin: Vec<i32>,
+
     density_slice: Vec<u64>,
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
@@ -116,6 +119,8 @@ impl HegselmannKrause {
             opinion_set,
             acc_change: 0.,
             dynamic_density,
+            ji: Vec::new(),
+            jin: Vec::new(),
             density_slice: vec![0; DENSITYBINS],
             rng,
         };

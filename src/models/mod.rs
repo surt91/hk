@@ -14,4 +14,4 @@ pub use hk_lorenz::HegselmannKrauseLorenz;
 pub use hk_lorenz_singleupdate::HegselmannKrauseLorenzSingle;
 
 pub use simulated_annealing::anneal;
-pub use simulated_annealing::{Exponential,Linear};
+pub use simulated_annealing::{Exponential, Linear, Model};
