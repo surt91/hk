@@ -243,7 +243,8 @@ pub fn anneal<T, S, R>(model: &mut T, schedule: S, mut rng: &mut R)
             // let e_after = model.energy();
             let e_after = model.energy_incremental(idx, old, new);
             tries += 1;
-            if ((e_after - e_before) / t).exp() < rng.gen() {
+            if (-(e_after - e_before) / t).exp() < rng.gen() {
+                model.energy_incremental(idx, new, old);
                 model.undo(undo_info);
                 reject += 1;
             } else {
