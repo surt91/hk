@@ -190,8 +190,8 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
                 args.eta as f32,
                 CostModel::Rebounce,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
+                args.min_resources as f32,
+                args.max_resources as f32,
                 args.seed
             );
 
@@ -254,8 +254,8 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
                 args.eta as f32,
                 CostModel::Change,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
+                args.min_resources as f32,
+                args.max_resources as f32,
                 args.seed
             );
 
@@ -308,8 +308,8 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
                 args.eta as f32,
                 CostModel::Free,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
+                args.min_resources as f32,
+                args.max_resources as f32,
                 args.seed
             );
 
