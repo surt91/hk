@@ -63,7 +63,7 @@ impl Model for HegselmannKrause {
 
             self.opinion_set
                 .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
-                .map(|(j, ctr)| *ctr as i32)
+                .map(|(_, ctr)| *ctr as i32)
                 .sum()
         }).collect();
     }
@@ -122,9 +122,8 @@ impl Model for HegselmannKrause {
 
     fn change<R>(&mut self, rng: &mut R) -> (usize, f32, f32) where R: Rng {
         let idx: usize = (rng.gen::<f32>() * self.size() as f32) as usize;
-        let i = &self.agents[idx];
 
-        let old_x = i.opinion;
+        let old_x = self.agents[idx].opinion;
         // let mut new_x = old_x + 0.1 * (rng.gen::<f32>() - 0.5);
         // if new_x < 0. {
         //     new_x *= -1.;
@@ -133,7 +132,7 @@ impl Model for HegselmannKrause {
         // }
         let new_x = rng.gen::<f32>();
 
-        self.update_entry(i.opinion, new_x);
+        self.update_entry(old_x, new_x);
 
         self.agents[idx].opinion = new_x;
 
@@ -142,9 +141,9 @@ impl Model for HegselmannKrause {
 
     fn undo(&mut self, undo_info: (usize, f32)) {
         let (idx, old_x) = undo_info;
-        let i = &self.agents[idx];
+        let new_x = self.agents[idx].opinion;
 
-        self.update_entry(i.opinion, old_x);
+        self.update_entry(new_x, old_x);
 
         self.agents[idx].opinion = old_x;
     }
@@ -235,22 +234,21 @@ pub fn anneal<T, S, R>(model: &mut T, schedule: S, mut rng: &mut R)
     model.init_ji();
 
     for t in schedule {
-        let mut tries = 0;
-        let mut reject = 0;
+        // let mut tries = 0;
+        // let mut reject = 0;
         for _ in 0..model.size() {
             let (idx, old, new) = model.change(&mut rng);
             let undo_info = (idx, old);
             // let e_after = model.energy();
             let e_after = model.energy_incremental(idx, old, new);
-            tries += 1;
+            // tries += 1;
             if (-(e_after - e_before) / t).exp() < rng.gen() {
                 model.energy_incremental(idx, new, old);
                 model.undo(undo_info);
-                reject += 1;
+                // reject += 1;
             } else {
                 e_before = e_after;
             }
-            // println!("{} -> {}", e_before, e_after);
         }
         // println!("{}: {:.0}%", t, reject as f32 / tries as f32 * 100.);
         model.notify_sweep();
