@@ -131,10 +131,14 @@ impl Model for HegselmannKrause {
         //     new_x = 2. - new_x
         // }
         let new_x = rng.gen::<f32>();
+        if self.agents[idx].resources < 0. && self.eta > 0. {
+            return (idx, old_x, old_x)
+        }
 
         self.update_entry(old_x, new_x);
 
         self.agents[idx].opinion = new_x;
+        self.agents[idx].resources -= (self.agents[idx].opinion - self.agents[idx].initial_opinion).abs();
 
         (idx, old_x, new_x)
     }
@@ -143,8 +147,13 @@ impl Model for HegselmannKrause {
         let (idx, old_x) = undo_info;
         let new_x = self.agents[idx].opinion;
 
+        if old_x == new_x {
+            return
+        }
+
         self.update_entry(new_x, old_x);
 
+        self.agents[idx].resources += (self.agents[idx].opinion - self.agents[idx].initial_opinion).abs();
         self.agents[idx].opinion = old_x;
     }
 
