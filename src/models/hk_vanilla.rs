@@ -138,7 +138,7 @@ impl HegselmannKrause {
             dynamic_density,
             ji: Vec::new(),
             jin: Vec::new(),
-            density_slice: vec![0; DENSITYBINS],
+            density_slice: vec![0; DENSITYBINS+1],
             rng,
         };
 
