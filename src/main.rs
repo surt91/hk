@@ -330,6 +330,12 @@ fn main() -> std::io::Result<()> {
 
             hk.write_density(&mut density)?;
 
+            drop(output);
+            Command::new("gzip")
+                .arg(format!("{}", clustername.to_str().unwrap()))
+                .output()
+                .expect("failed to zip output file");
+
             Ok(())
         },
         _ => unreachable!()
