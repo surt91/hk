@@ -5,10 +5,10 @@ use std::process::Command;
 
 use structopt::StructOpt;
 
-use hk::{HegselmannKrause, HegselmannKrauseBuilder};
+use hk::HegselmannKrauseBuilder;
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, Exponential, Linear, CostModel};
+use hk::{anneal, Exponential, CostModel};
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
@@ -209,19 +209,19 @@ fn main() -> std::io::Result<()> {
         4 => {
             let mut hk = HegselmannKrauseLorenzSingle::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
 
-            let dataname = args.outname.with_extension("dat");
+            // let dataname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
 
-            let mut output = File::create(&dataname)?;
+            // let mut output = File::create(&dataname)?;
             let mut output_cluster = File::create(&clustername)?;
             let mut density = File::create(args.outname.with_extension("density.dat"))?;
 
             for _ in 0..args.samples {
                 hk.reset();
-                let mut ctr = 0;
+                // let mut ctr = 0;
                 for _ in 0..args.iterations {
                     // test if we are converged
-                    ctr += 1;
+                    // ctr += 1;
                     hk.sweep();
                     // hk.sweep_synchronous();
                     // if hk.acc_change < 1e-7 {
@@ -296,7 +296,7 @@ fn main() -> std::io::Result<()> {
         6 => {
             use rand::SeedableRng;
             use rand_pcg::Pcg64;
-            
+
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
                 args.min_tolerance as f32,
