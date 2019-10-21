@@ -4,7 +4,7 @@ mod hk_lorenz_singleupdate;
 
 mod simulated_annealing;
 
-pub use hk_vanilla::HegselmannKrause;
+pub use hk_vanilla::{HegselmannKrause, HegselmannKrauseBuilder};
 pub use hk_vanilla::CostModel;
 
 pub use hk_lorenz::HegselmannKrauseLorenz;

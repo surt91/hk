@@ -15,7 +15,7 @@ const THRESHOLD: usize = 4000;
 const EPS: f32 = 1e-5;
 const DENSITYBINS: usize = 100;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum CostModel {
     Rebounce,
     Change,
@@ -74,7 +74,71 @@ impl PartialEq for HKAgent {
 //     fn density(&self);
 // }
 
-// TODO: at some point I should use a builder pattern to make this less ugly
+
+pub struct HegselmannKrauseBuilder {
+    num_agents: u32,
+    min_tolerance: f32,
+    max_tolerance: f32,
+
+    cost_model: CostModel,
+    eta: f32,
+    min_resources: f32,
+    max_resources: f32,
+
+    seed: u64,
+}
+
+impl HegselmannKrauseBuilder {
+    pub fn new(num_agents: u32, min_tolerance: f32, max_tolerance: f32) -> HegselmannKrauseBuilder {
+        HegselmannKrauseBuilder {
+            num_agents,
+            min_tolerance,
+            max_tolerance,
+
+            cost_model: CostModel::Free,
+            eta: 0.,
+            min_resources: 0.,
+            max_resources: 0.,
+
+            seed: 42,
+        }
+    }
+
+    pub fn cost_model<'a>(&'a mut self, cost_model: CostModel) -> &'a mut HegselmannKrauseBuilder {
+        self.cost_model = cost_model;
+        self
+    }
+
+    pub fn eta<'a>(&'a mut self, eta: f32) -> &'a mut HegselmannKrauseBuilder {
+        self.eta = eta;
+        self
+    }
+
+    pub fn resources<'a>(&'a mut self, min_resources: f32, max_resources: f32) -> &'a mut HegselmannKrauseBuilder {
+        self.min_resources = min_resources;
+        self.max_resources = max_resources;
+        self
+    }
+
+    pub fn seed<'a>(&'a mut self, seed: u64) -> &'a mut HegselmannKrauseBuilder {
+        self.seed = seed;
+        self
+    }
+
+    pub fn build(&self) -> HegselmannKrause {
+        HegselmannKrause::new(
+            self.num_agents,
+            self.min_tolerance,
+            self.max_tolerance,
+            self.eta,
+            self.cost_model.clone(),
+            self.min_resources,
+            self.max_resources,
+            self.seed,
+        )
+
+    }
+}
 
 pub struct HegselmannKrause {
     pub num_agents: u32,

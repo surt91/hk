@@ -5,7 +5,7 @@ use std::process::Command;
 
 use structopt::StructOpt;
 
-use hk::HegselmannKrause;
+use hk::{HegselmannKrause, HegselmannKrauseBuilder};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, Exponential, Linear, CostModel};
@@ -83,15 +83,12 @@ fn main() -> std::io::Result<()> {
 
     match args.model {
         1 => {
-            let mut hk = HegselmannKrause::new(
+            let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
-                0.,
-                CostModel::Free,
-                0.,
-                0.,
-                args.seed);
+            ).seed(args.seed)
+            .build();
 
             // let outname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
@@ -184,16 +181,15 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         3 => {
-            let mut hk = HegselmannKrause::new(
+            let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
-                args.eta as f32,
-                CostModel::Rebounce,
-                args.min_resources as f32,
-                args.max_resources as f32,
-                args.seed
-            );
+            ).seed(args.seed)
+            .eta(args.eta as f32)
+            .cost_model(CostModel::Rebounce)
+            .resources(args.min_resources as f32, args.max_resources as f32)
+            .build();
 
             // let outname = args.outname.with_extension("dat");
             // let mut gp = File::create(args.outname.with_extension("gp"))?;
@@ -248,16 +244,15 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         5 => {
-            let mut hk = HegselmannKrause::new(
+            let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
-                args.eta as f32,
-                CostModel::Change,
-                args.min_resources as f32,
-                args.max_resources as f32,
-                args.seed
-            );
+            ).seed(args.seed)
+            .eta(args.eta as f32)
+            .cost_model(CostModel::Change)
+            .resources(args.min_resources as f32, args.max_resources as f32)
+            .build();
 
             // let outname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
@@ -301,17 +296,15 @@ fn main() -> std::io::Result<()> {
         6 => {
             use rand::SeedableRng;
             use rand_pcg::Pcg64;
-
-            let mut hk = HegselmannKrause::new(
+            
+            let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
-                args.eta as f32,
-                CostModel::Free,
-                args.min_resources as f32,
-                args.max_resources as f32,
-                args.seed
-            );
+            ).seed(args.seed)
+            .eta(args.eta as f32)
+            .resources(args.min_resources as f32, args.max_resources as f32)
+            .build();
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
