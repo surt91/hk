@@ -8,7 +8,7 @@
 ///
 /// also we want to be flexible in regard to the cooling schedule
 
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 
 use ordered_float::OrderedFloat;
 
