@@ -8,7 +8,7 @@ use structopt::StructOpt;
 use hk::HegselmannKrauseBuilder;
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, Exponential, CostModel};
+use hk::{anneal, local_anneal, Exponential, CostModel};
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
@@ -61,13 +61,15 @@ struct Opt {
     /// number of times to repeat the simulation
     samples: u32,
 
-    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6"])]
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7"])]
     /// which model to simulate:
     /// 1 -> Hegselmann Krause,
     /// 2 -> multidimensional Hegselmann Krause (Lorenz)
     /// 3 -> HK with active cost
     /// 4 -> multidimensional Hegselmann Krause (Lorenz) but only updating one dimension
     /// 5 -> HK with passive cost
+    /// 6 -> HK annealing with cost and resources
+    /// 7 -> HK annealing with local energy
     model: u32,
 
     #[structopt(short, long, default_value = "out", parse(from_os_str))]
@@ -318,6 +320,44 @@ fn main() -> std::io::Result<()> {
                 // let schedule = Linear::new(520, 0.);
                 hk.reset();
                 anneal(&mut hk, schedule, &mut rng);
+                hk.write_cluster_sizes(&mut output)?;
+            }
+
+            hk.write_density(&mut density)?;
+
+            drop(output);
+            Command::new("gzip")
+                .arg(format!("{}", clustername.to_str().unwrap()))
+                .output()
+                .expect("failed to zip output file");
+
+            Ok(())
+        },
+        7 => {
+            use rand::SeedableRng;
+            use rand_pcg::Pcg64;
+
+            let mut hk = HegselmannKrauseBuilder::new(
+                args.num_agents,
+                args.min_tolerance as f32,
+                args.max_tolerance as f32,
+            ).seed(args.seed)
+            .eta(args.eta as f32)
+            .resources(args.min_resources as f32, args.max_resources as f32)
+            .build();
+
+            let mut rng = Pcg64::seed_from_u64(args.seed);
+
+            let clustername = args.outname.with_extension("cluster.dat");
+            let mut density = File::create(args.outname.with_extension("density.dat"))?;
+            let mut output = File::create(&clustername)?;
+
+            for _ in 0..args.samples {
+                let schedule = Exponential::new(520, 3., 0.98);
+                // let schedule = Linear::new(520, 0.1);
+                // let schedule = Linear::new(520, 0.);
+                hk.reset();
+                local_anneal(&mut hk, schedule, &mut rng);
                 hk.write_cluster_sizes(&mut output)?;
             }
 
