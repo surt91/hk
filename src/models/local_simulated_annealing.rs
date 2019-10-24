@@ -158,7 +158,7 @@ impl LocalModel for HegselmannKrause {
 }
 
 
-pub fn local_anneal<T, S, R>(model: &mut T, schedule: S, mut rng: &mut R)
+pub fn local_anneal<T, S, R>(model: &mut T, schedule: S, mut rng: &mut R) -> f32
         where T: LocalModel, S: Iterator<Item = f32>, R: Rng {
     model.init_ji();
 
@@ -182,4 +182,5 @@ pub fn local_anneal<T, S, R>(model: &mut T, schedule: S, mut rng: &mut R)
         // println!("{}: {:.0}%", t, reject as f32 / tries as f32 * 100.);
         model.notify_sweep();
     }
+    (0..model.size()).map(|i| model.local_energy(i)).sum()
 }

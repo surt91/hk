@@ -312,6 +312,7 @@ fn main() -> std::io::Result<()> {
 
             let clustername = args.outname.with_extension("cluster.dat");
             let mut density = File::create(args.outname.with_extension("density.dat"))?;
+            let mut energy = File::create(args.outname.with_extension("energy.dat"))?;
             let mut output = File::create(&clustername)?;
 
             for _ in 0..args.samples {
@@ -319,7 +320,8 @@ fn main() -> std::io::Result<()> {
                 // let schedule = Linear::new(520, 0.1);
                 // let schedule = Linear::new(520, 0.);
                 hk.reset();
-                anneal(&mut hk, schedule, &mut rng);
+                let e = anneal(&mut hk, schedule, &mut rng);
+                write!(energy, "{}\n", e)?;
                 hk.write_cluster_sizes(&mut output)?;
             }
 
@@ -349,6 +351,7 @@ fn main() -> std::io::Result<()> {
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
             let clustername = args.outname.with_extension("cluster.dat");
+            let mut energy = File::create(args.outname.with_extension("energy.dat"))?;
             let mut density = File::create(args.outname.with_extension("density.dat"))?;
             let mut output = File::create(&clustername)?;
 
@@ -357,7 +360,8 @@ fn main() -> std::io::Result<()> {
                 // let schedule = Linear::new(520, 0.1);
                 // let schedule = Linear::new(520, 0.);
                 hk.reset();
-                local_anneal(&mut hk, schedule, &mut rng);
+                let e = local_anneal(&mut hk, schedule, &mut rng);
+                write!(energy, "{}\n", e)?;
                 hk.write_cluster_sizes(&mut output)?;
             }
 
