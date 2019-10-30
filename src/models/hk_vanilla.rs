@@ -22,6 +22,12 @@ pub enum CostModel {
     Free,
 }
 
+#[derive(PartialEq, Clone)]
+pub enum PopulationModel {
+    Uniform,
+    Bimodal,
+}
+
 #[derive(Clone, Debug)]
 pub struct HKAgent {
     pub opinion: f32,
@@ -81,6 +87,7 @@ pub struct HegselmannKrauseBuilder {
     max_tolerance: f32,
 
     cost_model: CostModel,
+    population_model: PopulationModel,
     eta: f32,
     min_resources: f32,
     max_resources: f32,
@@ -96,6 +103,7 @@ impl HegselmannKrauseBuilder {
             max_tolerance,
 
             cost_model: CostModel::Free,
+            population_model: PopulationModel::Uniform,
             eta: 0.,
             min_resources: 0.,
             max_resources: 0.,
@@ -106,6 +114,11 @@ impl HegselmannKrauseBuilder {
 
     pub fn cost_model<'a>(&'a mut self, cost_model: CostModel) -> &'a mut HegselmannKrauseBuilder {
         self.cost_model = cost_model;
+        self
+    }
+
+    pub fn population_model<'a>(&'a mut self, population_model: PopulationModel) -> &'a mut HegselmannKrauseBuilder {
+        self.population_model = population_model;
         self
     }
 
@@ -132,6 +145,7 @@ impl HegselmannKrauseBuilder {
             self.max_tolerance,
             self.eta,
             self.cost_model.clone(),
+            self.population_model.clone(),
             self.min_resources,
             self.max_resources,
             self.seed,
@@ -148,6 +162,7 @@ pub struct HegselmannKrause {
     max_tolerance: f32,
 
     cost_model: CostModel,
+    population_model: PopulationModel,
     pub eta: f32,
     min_resources: f32,
     max_resources: f32,
@@ -178,7 +193,18 @@ impl fmt::Debug for HegselmannKrause {
 }
 
 impl HegselmannKrause {
-    pub fn new(n: u32, min_tolerance: f32, max_tolerance: f32, eta: f32, cost_model: CostModel, min_resources: f32, max_resources: f32, seed: u64) -> HegselmannKrause {
+    pub fn new(
+        n: u32,
+        min_tolerance: f32,
+        max_tolerance: f32,
+        eta: f32,
+        cost_model:
+        CostModel,
+        population_model: PopulationModel,
+        min_resources: f32,
+        max_resources: f32,
+        seed: u64
+    ) -> HegselmannKrause {
         let rng = Pcg64::seed_from_u64(seed);
         let agents: Vec<HKAgent> = Vec::new();
 
@@ -194,6 +220,7 @@ impl HegselmannKrause {
             min_tolerance,
             max_tolerance,
             cost_model,
+            population_model,
             eta,
             min_resources,
             max_resources,
@@ -215,11 +242,18 @@ impl HegselmannKrause {
     }
 
     pub fn reset(&mut self) {
-        self.agents = (0..self.num_agents).map(|_| HKAgent::new(
-            self.rng.gen(),
-            HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
-            HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-        )).collect();
+        self.agents = match self.population_model {
+            PopulationModel::Uniform => (0..self.num_agents).map(|_| HKAgent::new(
+                                            self.rng.gen(),
+                                            HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
+                                            HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
+                                        )).collect(),
+            PopulationModel::Bimodal => (0..self.num_agents).map(|_| HKAgent::new(
+                                            self.rng.gen(),
+                                            if self.rng.gen::<f32>() < 0.5 {self.min_tolerance} else {self.max_tolerance},
+                                            HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
+                                        )).collect(),
+        };
 
         self.opinion_set.clear();
         for i in self.agents.iter() {

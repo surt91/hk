@@ -8,7 +8,7 @@ use structopt::StructOpt;
 use hk::HegselmannKrauseBuilder;
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, local_anneal, Exponential, CostModel};
+use hk::{anneal, local_anneal, Exponential, CostModel, PopulationModel};
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
@@ -20,6 +20,12 @@ struct Opt {
     #[structopt(short, long, default_value = "2")]
     /// number of dimensions (only for Lorenz modification)
     dimension: u32,
+
+    #[structopt(long, default_value = "1", possible_values = &["1", "2"])]
+    /// distribution of the tolerances epsilon_i
+    /// 1 => uniform between min and max
+    /// 2 => bimodal: half min, half max
+    tolerance_distribution: u32,
 
     #[structopt(short = "l", long, default_value = "0.0")]
     /// minimum tolerance of agents (uniformly distributed)
@@ -82,6 +88,11 @@ struct Opt {
 
 fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
+    let pop_model = match args.tolerance_distribution {
+        1 => PopulationModel::Uniform,
+        2 => PopulationModel::Bimodal,
+        _ => unreachable!(),
+    };
 
     match args.model {
         1 => {
@@ -90,6 +101,7 @@ fn main() -> std::io::Result<()> {
                 args.min_tolerance as f32,
                 args.max_tolerance as f32,
             ).seed(args.seed)
+            .population_model(pop_model)
             .build();
 
             // let outname = args.outname.with_extension("dat");
@@ -190,6 +202,7 @@ fn main() -> std::io::Result<()> {
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Rebounce)
+            .population_model(pop_model)
             .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
@@ -253,6 +266,7 @@ fn main() -> std::io::Result<()> {
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Change)
+            .population_model(pop_model)
             .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
@@ -305,6 +319,7 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
+            .population_model(pop_model)
             .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
@@ -345,6 +360,7 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
+            .population_model(pop_model)
             .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
