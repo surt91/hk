@@ -1,7 +1,7 @@
 extern crate hk;
-use hk::HegselmannKrause;
+use hk::HegselmannKrauseBuilder;
 
-use hk::{Model, CostModel};
+use hk::Model;
 
 #[cfg(test)]
 mod tests {
@@ -10,8 +10,13 @@ mod tests {
 
     #[test]
     fn test_cmp_naive_bisect() {
-        let mut hk1 = HegselmannKrause::new(100, 0., 1.0, 0., CostModel::Free, 0., 0., 13);
-        let mut hk2 = HegselmannKrause::new(100, 0., 1.0, 0., CostModel::Free, 0., 0., 13);
+        let mut hk1 = HegselmannKrauseBuilder::new(100, 0., 1.)
+            .seed(13)
+            .build();
+        let mut hk2 = HegselmannKrauseBuilder::new(100, 0., 1.)
+            .seed(13)
+            .build();
+
         for _ in 0..100 {
             // println!("{}", i);
             hk1.step_naive();
@@ -24,8 +29,13 @@ mod tests {
 
     #[test]
     fn test_cmp_sync() {
-        let mut hk1 = HegselmannKrause::new(100, 0., 1., 0., CostModel::Free, 0., 0., 13);
-        let mut hk2 = HegselmannKrause::new(100, 0., 1., 0., CostModel::Free, 0., 0., 13);
+        let mut hk1 = HegselmannKrauseBuilder::new(100, 0., 1.)
+            .seed(13)
+            .build();
+        let mut hk2 = HegselmannKrauseBuilder::new(100, 0., 1.)
+            .seed(13)
+            .build();
+
         for _ in 0..100 {
             hk1.sweep_synchronous_naive();
             hk2.sweep_synchronous_bisect();
@@ -41,7 +51,11 @@ mod tests {
         use rand_pcg::Pcg64;
         let mut rng = Pcg64::seed_from_u64(42);
 
-        let mut hk = HegselmannKrause::new(100, 0., 1., 0.5, CostModel::Free, 0., 0., 13);
+        let mut hk = HegselmannKrauseBuilder::new(100, 0., 1.)
+            .seed(13)
+            .eta(0.5)
+            .build();
+
         hk.init_ji();
         for i in 0..100 {
             let (idx, old, new) = hk.change(&mut rng);
