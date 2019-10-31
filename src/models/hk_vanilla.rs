@@ -378,7 +378,10 @@ impl HegselmannKrause {
         let (new_opinions, acc_change) = self.sync_new_opinions_naive();
         self.acc_change += acc_change;
         for i in 0..self.num_agents as usize {
-            self.agents[i].opinion = new_opinions[i];
+            let (new_opinion, new_resources) = self.pay(i, new_opinions[i]);
+
+            self.agents[i].opinion = new_opinion;
+            self.agents[i].resources = new_resources
         }
         self.add_state_to_density()
     }
@@ -406,17 +409,16 @@ impl HegselmannKrause {
         for i in 0..self.num_agents as usize {
             // often, nothing changes -> optimize for this converged case
             let old = self.agents[i].opinion;
-            self.update_entry(old, new_opinions[i]);
+            let (new_opinion, new_resources) = self.pay(i, new_opinions[i]);
+            self.update_entry(old, new_opinion);
 
-            self.agents[i].opinion = new_opinions[i];
+            self.agents[i].opinion = new_opinion;
+            self.agents[i].resources = new_resources
         }
         self.add_state_to_density()
     }
 
     pub fn sweep_synchronous(&mut self) {
-        if self.cost_model != CostModel::Free {
-            panic!("synchronous update with limited resources is not yet implemented");
-        }
         self.sweep_synchronous_bisect();
         self.time += 1;
     }
