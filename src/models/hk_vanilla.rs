@@ -356,9 +356,8 @@ impl HegselmannKrause {
         self.time += 1;
     }
 
-    fn sync_new_opinions_naive(&self) -> (Vec<f32>, f32) {
-        let mut acc_change = 0.;
-        let op = self.agents.iter().map(|i| {
+    fn sync_new_opinions_naive(&self) -> Vec<f32> {
+        self.agents.iter().map(|i| {
             let mut tmp = 0.;
             let mut count = 0;
             for j in self.agents.iter()
@@ -368,17 +367,17 @@ impl HegselmannKrause {
             }
 
             tmp /= count as f32;
-            acc_change += (tmp - i.opinion).abs();
             tmp
-        }).collect();
-        (op, acc_change)
+        }).collect()
     }
 
     pub fn sweep_synchronous_naive(&mut self) {
-        let (new_opinions, acc_change) = self.sync_new_opinions_naive();
-        self.acc_change += acc_change;
+        let new_opinions = self.sync_new_opinions_naive();
+        self.acc_change = 0.;
         for i in 0..self.num_agents as usize {
             let (new_opinion, new_resources) = self.pay(i, new_opinions[i]);
+
+            self.acc_change += (self.agents[i].opinion - new_opinion).abs();
 
             self.agents[i].opinion = new_opinion;
             self.agents[i].resources = new_resources
@@ -386,31 +385,29 @@ impl HegselmannKrause {
         self.add_state_to_density()
     }
 
-    fn sync_new_opinions_bisect(&self) -> (Vec<f32>, f32) {
-        let mut acc_change = 0.;
-        let op = self.agents.clone().iter().map(|i| {
+    fn sync_new_opinions_bisect(&self) -> Vec<f32> {
+        self.agents.clone().iter().map(|i| {
             let (sum, count) = self.opinion_set
                 .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
                 .map(|(j, ctr)| (j.into_inner(), ctr))
                 .fold((0., 0), |(sum, count), (j, ctr)| (sum + *ctr as f32 * j, count + ctr));
 
             let new_opinion = sum / count as f32;
-            acc_change += (new_opinion - i.opinion).abs();
             new_opinion
-        }).collect();
-
-        (op, acc_change)
+        }).collect()
     }
 
     pub fn sweep_synchronous_bisect(&mut self) {
-        let (new_opinions, acc_change) = self.sync_new_opinions_bisect();
-        self.acc_change += acc_change;
+        let new_opinions = self.sync_new_opinions_bisect();
+        self.acc_change = 0.;
 
         for i in 0..self.num_agents as usize {
             // often, nothing changes -> optimize for this converged case
             let old = self.agents[i].opinion;
             let (new_opinion, new_resources) = self.pay(i, new_opinions[i]);
             self.update_entry(old, new_opinion);
+
+            self.acc_change += (self.agents[i].opinion - new_opinion).abs();
 
             self.agents[i].opinion = new_opinion;
             self.agents[i].resources = new_resources
