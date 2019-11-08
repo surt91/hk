@@ -106,7 +106,8 @@ fn main() -> std::io::Result<()> {
 
             // let outname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
+            let densityname = args.outname.with_extension("density.dat");
+            let mut density = File::create(&densityname)?;
             let mut output = File::create(&clustername)?;
 
             for _ in 0..args.samples {
@@ -139,7 +140,13 @@ fn main() -> std::io::Result<()> {
             Command::new("gzip")
                 .arg(format!("{}", clustername.to_str().unwrap()))
                 .output()
-                .expect("failed to zip output file");
+                .expect("failed to zip output file: cluster");
+
+            drop(density);
+            Command::new("gzip")
+                .arg(format!("{}", densityname.to_str().unwrap()))
+                .output()
+                .expect("failed to zip output file: density");
 
             Ok(())
         },
