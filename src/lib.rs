@@ -1,4 +1,4 @@
-mod models;
+pub mod models;
 
 pub use models::{HegselmannKrause, HegselmannKrauseBuilder};
 pub use models::HegselmannKrauseLorenz;

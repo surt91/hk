@@ -9,6 +9,7 @@ use hk::HegselmannKrauseBuilder;
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, local_anneal, Exponential, CostModel, PopulationModel};
+use hk::models::graph::from_hk;
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]

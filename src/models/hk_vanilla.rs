@@ -161,7 +161,7 @@ pub struct HegselmannKrause {
     min_tolerance: f32,
     max_tolerance: f32,
 
-    cost_model: CostModel,
+    pub cost_model: CostModel,
     population_model: PopulationModel,
     pub eta: f32,
     min_resources: f32,
