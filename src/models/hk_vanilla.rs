@@ -20,6 +20,7 @@ pub enum CostModel {
     Rebounce,
     Change,
     Free,
+    Annealing,
 }
 
 #[derive(PartialEq, Clone)]
@@ -303,6 +304,9 @@ impl HegselmannKrause {
                     }
                     new_resources = 0.;
                 }
+            }
+            CostModel::Annealing => {
+                panic!("CostModel::Annealing may not be used with the deterministic dynamics!")
             }
         }
         (new_opinion, new_resources)

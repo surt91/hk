@@ -347,6 +347,7 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
+            .cost_model(CostModel::Annealing)
             .population_model(pop_model)
             .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
@@ -388,6 +389,7 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
+            .cost_model(CostModel::Annealing)
             .population_model(pop_model)
             .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
