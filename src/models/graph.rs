@@ -1,11 +1,12 @@
 use petgraph::graph::DiGraph;
-use petgraph::algo::tarjan_scc;
+use petgraph::algo::{tarjan_scc, condensation};
+use petgraph::dot;
 
 use super::HegselmannKrause;
 use super::CostModel;
 // use super::hk_vanilla::HKAgent;
 
-pub fn from_hk(hk: &HegselmannKrause) {
+pub fn from_hk(hk: &HegselmannKrause) -> DiGraph::<i32, f32> {
     let mut g = DiGraph::<i32, f32>::new();
 
     let nodes: Vec<_> = hk.agents.iter().enumerate()
@@ -28,7 +29,17 @@ pub fn from_hk(hk: &HegselmannKrause) {
         g.extend_with_edges(&n);
     }
 
-    let clustersizes: Vec<_> = tarjan_scc(&g).iter().map(|v| v.len()).collect();
+    g
+}
 
-    println!("{:?}", clustersizes);
+pub fn clustersizes(g: &DiGraph::<i32, f32>) -> Vec<usize> {
+    tarjan_scc(&g).iter().map(|v| v.len()).collect()
+}
+
+pub fn dot(g: &DiGraph::<i32, f32>) -> String {
+    dot::Dot::with_config(&g, &[dot::Config::EdgeNoLabel]).to_string()
+}
+
+pub fn condense(g: &DiGraph::<i32, f32>) -> DiGraph::<i32, f32> {
+    condensation(g.clone(), true).map(|_, x| x.len() as i32, |_, x| *x)
 }

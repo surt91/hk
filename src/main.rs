@@ -5,11 +5,11 @@ use std::process::Command;
 
 use structopt::StructOpt;
 
-use hk::HegselmannKrauseBuilder;
+use hk::{HegselmannKrauseBuilder,HegselmannKrause};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, local_anneal, Exponential, CostModel, PopulationModel};
-use hk::models::graph::from_hk;
+use hk::models::graph;
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
@@ -86,6 +86,26 @@ struct Opt {
 
 // TODO: I should introduce the trait `model` and make everything below more generic
 // a model should implement sweep, write_state and write_gp
+
+fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &std::path::PathBuf) -> Result<(), std::io::Error>{
+    // let dotname = filename.with_extension(format!("{}.dot", ctr));
+    println!("{:?}", dotname);
+    let mut dotfile = File::create(&dotname)?;
+    let g = graph::from_hk(&hk);
+    let g2 = graph::condense(&g);
+    let dot = graph::dot(&g2);
+    write!(dotfile, "{}\n", dot)?;
+    drop(dotfile);
+    let dotimage = Command::new("fdp")
+        .arg(format!("{}", dotname.to_str().unwrap()))
+        .arg("-Tpng")
+        .output()
+        .expect("failed to create dot image");
+    let mut dotimagefile = File::create(&dotname.with_extension("png"))?;
+    dotimagefile.write(&dotimage.stdout)?;
+
+    Ok(())
+}
 
 fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
