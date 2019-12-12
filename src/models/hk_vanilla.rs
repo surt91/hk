@@ -25,8 +25,13 @@ pub enum CostModel {
 
 #[derive(PartialEq, Clone)]
 pub enum PopulationModel {
+    // uniform opinions, uniform tolerances
     Uniform,
+    // uniform opinions, bimodal tolerances
     Bimodal,
+    // A fraction of the agents with a different tolerace and a concentrated initial opinion
+    // initial opinion, opinion spread, fraction of agents, epsilon, epsilonspread
+    Bridgehead(f32, f32, f32, f32, f32),
 }
 
 #[derive(Clone, Debug)]
@@ -254,6 +259,21 @@ impl HegselmannKrause {
                                             if self.rng.gen::<f32>() < 0.5 {self.min_tolerance} else {self.max_tolerance},
                                             HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
                                         )).collect(),
+            PopulationModel::Bridgehead(x_init, x_spread, frac, eps_init, eps_spread) => (0..self.num_agents).map(|n| {
+                if n as f32 > frac * self.num_agents as f32 {
+                    HKAgent::new(
+                        self.rng.gen(),
+                        HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
+                        HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
+                    )
+                } else {
+                    HKAgent::new(
+                        HegselmannKrause::stretch(self.rng.gen(), x_init-x_spread, x_init+x_spread),
+                        HegselmannKrause::stretch(self.rng.gen(), eps_init-eps_spread, eps_init+eps_spread),
+                        HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
+                    )
+                }
+            }).collect()
         };
 
         self.opinion_set.clear();
