@@ -359,10 +359,10 @@ fn main() -> std::io::Result<()> {
             let mut energy = File::create(args.outname.with_extension("energy.dat"))?;
             let mut output = File::create(&clustername)?;
 
-            for _ in 0..args.samples {
-                let schedule = Exponential::new(520, 3., 0.98);
-                // let schedule = Linear::new(520, 0.1);
-                // let schedule = Linear::new(520, 0.);
+            for n in 0..args.samples {
+                let schedule = Exponential::new(args.iterations as usize, 3., 0.98);
+                // let schedule = Linear::new(args.iterations as usize, 0.1);
+                // let schedule = Linear::new(args.iterations as usize, 0.);
                 hk.reset();
                 let e = anneal(&mut hk, schedule, &mut rng);
                 write!(energy, "{}\n", e)?;
@@ -402,9 +402,9 @@ fn main() -> std::io::Result<()> {
             let mut output = File::create(&clustername)?;
 
             for _ in 0..args.samples {
-                let schedule = Exponential::new(520, 3., 0.98);
-                // let schedule = Linear::new(520, 0.1);
-                // let schedule = Linear::new(520, 0.);
+                let schedule = Exponential::new(args.iterations as usize, 3., 0.98);
+                // let schedule = Linear::new(args.iterations as usize, 0.1);
+                // let schedule = Linear::new(args.iterations as usize, 0.);
                 hk.reset();
                 let e = local_anneal(&mut hk, schedule, &mut rng);
                 write!(energy, "{}\n", e)?;
