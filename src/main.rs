@@ -22,10 +22,13 @@ struct Opt {
     /// number of dimensions (only for Lorenz modification)
     dimension: u32,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5"])]
     /// distribution of the tolerances epsilon_i
     /// 1 => uniform between min and max
     /// 2 => bimodal: half min, half max
+    /// 3 => 15% of agents at x(0) = 0.25+-0.05, with confidence eps = 0.075+-0.05
+    /// 4 => gaussian: min -> mean, max -> variance
+    /// 5 => power law: min -> lower bound (scale), max -> exponent (= shape+1)
     tolerance_distribution: u32,
 
     #[structopt(short = "l", long, default_value = "0.0")]
@@ -112,6 +115,9 @@ fn main() -> std::io::Result<()> {
     let pop_model = match args.tolerance_distribution {
         1 => PopulationModel::Uniform,
         2 => PopulationModel::Bimodal,
+        3 => PopulationModel::Bridgehead(0.25, 0.05, 0.15, 0.75, 0.05),
+        4 => PopulationModel::Gaussian,
+        5 => PopulationModel::PowerLaw,
         _ => unreachable!(),
     };
 

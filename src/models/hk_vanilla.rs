@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use rand::{Rng, SeedableRng};
+use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
@@ -32,6 +33,10 @@ pub enum PopulationModel {
     // A fraction of the agents with a different tolerace and a concentrated initial opinion
     // initial opinion, opinion spread, fraction of agents, epsilon, epsilonspread
     Bridgehead(f32, f32, f32, f32, f32),
+    // uniform opinions, Gaussian tolerances
+    Gaussian,
+    // uniform opinions, power law tolerances
+    PowerLaw,
 }
 
 #[derive(Clone, Debug)]
@@ -273,7 +278,24 @@ impl HegselmannKrause {
                         HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
                     )
                 }
-            }).collect()
+            }).collect(),
+            PopulationModel::Gaussian => {
+                let gauss = Normal::new(self.min_tolerance, self.max_tolerance).unwrap();
+                (0..self.num_agents).map(|_| HKAgent::new(
+                    self.rng.gen(),
+                    {|x| {if x < 0. {0.} else {x}}} (gauss.sample(&mut self.rng)),
+                    HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
+                )).collect()
+            },
+            PopulationModel::PowerLaw => {
+                // takes scale and shape parameter, the shape parameter is different by 1 from the exponent
+                let pareto = Pareto::new(self.min_tolerance, self.max_tolerance - 1.).unwrap();
+                (0..self.num_agents).map(|_| HKAgent::new(
+                    self.rng.gen(),
+                    pareto.sample(&mut self.rng),
+                    HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
+                )).collect()
+            },
         };
 
         self.opinion_set.clear();
