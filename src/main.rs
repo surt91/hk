@@ -5,6 +5,8 @@ use std::process::Command;
 
 use structopt::StructOpt;
 
+use itertools::Itertools;
+
 use hk::{HegselmannKrauseBuilder,HegselmannKrause};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
