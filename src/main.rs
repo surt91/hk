@@ -112,11 +112,14 @@ fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &std::path::PathBuf) -> Resul
     Ok(())
 }
 
-pub fn write_cluster_sizes_from_graph(hk: &HegselmannKrause, file: &mut File) -> std::io::Result<()> {
+pub fn cluster_sizes_from_graph(hk: &HegselmannKrause) -> Vec<usize> {
     let g = graph::from_hk(&hk);
-    let clusters = graph::clustersizes(&g);
-    // let s = entropy(hk, clusters);
-    // write!(file, "# entropy: {}\n", s)?;
+    graph::clustersizes(&g)
+}
+
+fn write_cluster_sizes(clusters: &Vec<usize>, file: &mut File) -> std::io::Result<()> {
+    let s = entropy(&clusters);
+    write!(file, "# entropy: {}\n", s)?;
 
     let string_list = clusters.iter()
         .map(|c| c.to_string())
@@ -124,6 +127,21 @@ pub fn write_cluster_sizes_from_graph(hk: &HegselmannKrause, file: &mut File) ->
     write!(file, "{}\n", string_list)?;
     Ok(())
 }
+
+fn write_entropy(clusters: &Vec<usize>, file: &mut File) -> std::io::Result<()> {
+    let s = entropy(&clusters);
+    write!(file, "{}\n", s)?;
+    Ok(())
+}
+
+fn entropy (clustersizes: &Vec<usize>) -> f32 {
+    let f = 1. / clustersizes.iter().sum::<usize>() as f32;
+    clustersizes.iter().map(|c| {
+        let p = *c as f32 * f;
+        - p * p.ln()
+    }).sum()
+}
+
 fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
     let pop_model = match args.tolerance_distribution {
@@ -321,6 +339,7 @@ fn main() -> std::io::Result<()> {
             // let outname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
             let mut density = File::create(args.outname.with_extension("density.dat"))?;
+            let mut entropy = File::create(args.outname.with_extension("entropy.dat"))?;
             let mut output = File::create(&clustername)?;
 
             for _ in 0..args.samples {
@@ -345,6 +364,8 @@ fn main() -> std::io::Result<()> {
                     hk.acc_change = 0.;
                 }
                 hk.write_cluster_sizes(&mut output)?;
+                let clusters = cluster_sizes_from_graph(&hk);
+                write_entropy(&clusters, &mut entropy)?;
             }
 
             hk.write_density(&mut density)?;
@@ -377,9 +398,10 @@ fn main() -> std::io::Result<()> {
             let clustername = args.outname.with_extension("cluster.dat");
             let mut density = File::create(args.outname.with_extension("density.dat"))?;
             let mut energy = File::create(args.outname.with_extension("energy.dat"))?;
+            let mut entropy = File::create(args.outname.with_extension("entropy.dat"))?;
             let mut output = File::create(&clustername)?;
 
-            for n in 0..args.samples {
+            for _n in 0..args.samples {
                 let schedule = Exponential::new(args.iterations as usize, 3., 0.98);
                 // let schedule = Linear::new(args.iterations as usize, 0.1);
                 // let schedule = Linear::new(args.iterations as usize, 0.);
@@ -388,7 +410,12 @@ fn main() -> std::io::Result<()> {
                 write!(energy, "{}\n", e)?;
 
                 // hk.write_cluster_sizes(&mut output)?;
-                write_cluster_sizes_from_graph(&hk, &mut output)?;
+                let clusters = cluster_sizes_from_graph(&hk);
+                write_cluster_sizes(&clusters, &mut output)?;
+                write_entropy(&clusters, &mut entropy)?;
+
+                // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
+                // println!("{}", hk.agents.iter().filter(|x| x.resources > 0.).count())
             }
 
             hk.write_density(&mut density)?;

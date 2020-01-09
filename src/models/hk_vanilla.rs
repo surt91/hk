@@ -481,10 +481,10 @@ impl HegselmannKrause {
         clusters
     }
 
-    pub fn cluster_sizes(&self) -> Vec<u32> {
+    pub fn cluster_sizes(&self) -> Vec<usize> {
         let clusters = self.list_clusters();
         clusters.iter()
-            .map(|c| c.len() as u32)
+            .map(|c| c.len() as usize)
             .collect()
     }
 
