@@ -110,6 +110,18 @@ fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &std::path::PathBuf) -> Resul
     Ok(())
 }
 
+pub fn write_cluster_sizes_from_graph(hk: &HegselmannKrause, file: &mut File) -> std::io::Result<()> {
+    let g = graph::from_hk(&hk);
+    let clusters = graph::clustersizes(&g);
+    // let s = entropy(hk, clusters);
+    // write!(file, "# entropy: {}\n", s)?;
+
+    let string_list = clusters.iter()
+        .map(|c| c.to_string())
+        .join(" ");
+    write!(file, "{}\n", string_list)?;
+    Ok(())
+}
 fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
     let pop_model = match args.tolerance_distribution {
@@ -372,7 +384,9 @@ fn main() -> std::io::Result<()> {
                 hk.reset();
                 let e = anneal(&mut hk, schedule, &mut rng);
                 write!(energy, "{}\n", e)?;
-                hk.write_cluster_sizes(&mut output)?;
+
+                // hk.write_cluster_sizes(&mut output)?;
+                write_cluster_sizes_from_graph(&hk, &mut output)?;
             }
 
             hk.write_density(&mut density)?;
