@@ -147,7 +147,7 @@ fn main() -> std::io::Result<()> {
     let pop_model = match args.tolerance_distribution {
         1 => PopulationModel::Uniform,
         2 => PopulationModel::Bimodal,
-        3 => PopulationModel::Bridgehead(0.25, 0.05, 0.15, 0.75, 0.05),
+        3 => PopulationModel::Bridgehead(0.25, 0.05, 0.15, 0.075, 0.05),
         4 => PopulationModel::Gaussian,
         5 => PopulationModel::PowerLaw,
         _ => unreachable!(),
