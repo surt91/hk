@@ -283,7 +283,15 @@ impl HegselmannKrause {
                 let gauss = Normal::new(self.min_tolerance, self.max_tolerance).unwrap();
                 (0..self.num_agents).map(|_| HKAgent::new(
                     self.rng.gen(),
-                    {|x| {if x < 0. {0.} else {x}}} (gauss.sample(&mut self.rng)),
+                    {
+                        // draw gaussian RN until you get one in range
+                        loop {
+                            let x = gauss.sample(&mut self.rng);
+                            if x <= 1. && x >= 0. {
+                                break x
+                            }
+                        }
+                    },
                     HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
                 )).collect()
             },
