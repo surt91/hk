@@ -26,17 +26,19 @@ pub enum CostModel {
 
 #[derive(PartialEq, Clone)]
 pub enum PopulationModel {
-    // uniform opinions, uniform tolerances
+    /// uniform opinions, uniform tolerances
     Uniform,
-    // uniform opinions, bimodal tolerances
+    /// uniform opinions, bimodal tolerances
     Bimodal,
-    // A fraction of the agents with a different tolerace and a concentrated initial opinion
-    // initial opinion, opinion spread, fraction of agents, epsilon, epsilonspread
+    /// A fraction of the agents with a different tolerace and a concentrated initial opinion
+    /// initial opinion, opinion spread, fraction of agents, epsilon, epsilonspread
     Bridgehead(f32, f32, f32, f32, f32),
-    // uniform opinions, Gaussian tolerances
+    /// uniform opinions, Gaussian tolerances
     Gaussian,
-    // uniform opinions, power law tolerances
+    /// uniform opinions, power law tolerances
     PowerLaw,
+    /// uniform opinions, power law with upper bound tolerances
+    PowerLawBound,
 }
 
 #[derive(Clone, Debug)]
@@ -301,6 +303,17 @@ impl HegselmannKrause {
                 (0..self.num_agents).map(|_| HKAgent::new(
                     self.rng.gen(),
                     pareto.sample(&mut self.rng),
+                    HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
+                )).collect()
+            },
+            PopulationModel::PowerLawBound => {
+                // http://mathworld.wolfram.com/RandomNumber.html
+                fn powerlaw(y: f32, low: f32, high: f32, alpha: f32) -> f32 {
+                    ((high.powf(alpha+1.) - low.powf(alpha+1.))*y + low.powf(alpha+1.)).powf(1./(alpha+1.))
+                }
+                (0..self.num_agents).map(|_| HKAgent::new(
+                    self.rng.gen(),
+                    powerlaw(self.rng.gen(), self.min_tolerance, self.max_tolerance, 2.5),
                     HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
                 )).collect()
             },
