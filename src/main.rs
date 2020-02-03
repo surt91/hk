@@ -366,8 +366,8 @@ fn main() -> std::io::Result<()> {
                     hk.acc_change = 0.;
                 }
                 hk.write_cluster_sizes(&mut output)?;
-                let clusters = cluster_sizes_from_graph(&hk);
-                write_entropy(&clusters, &mut entropy)?;
+                // let clusters = cluster_sizes_from_graph(&hk);
+                // write_entropy(&clusters, &mut entropy)?;
             }
 
             hk.write_density(&mut density)?;
