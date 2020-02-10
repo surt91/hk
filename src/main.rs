@@ -342,6 +342,7 @@ fn main() -> std::io::Result<()> {
             let clustername = args.outname.with_extension("cluster.dat");
             let mut density = File::create(args.outname.with_extension("density.dat"))?;
             let mut entropy = File::create(args.outname.with_extension("entropy.dat"))?;
+            let mut output_graph = File::create(args.outname.with_extension("scc.dat"))?;
             let mut output = File::create(&clustername)?;
 
             for _ in 0..args.samples {
@@ -366,8 +367,9 @@ fn main() -> std::io::Result<()> {
                     hk.acc_change = 0.;
                 }
                 hk.write_cluster_sizes(&mut output)?;
-                // let clusters = cluster_sizes_from_graph(&hk);
-                // write_entropy(&clusters, &mut entropy)?;
+
+                let clusters = cluster_sizes_from_graph(&hk);
+                write_cluster_sizes(&clusters, &mut output_graph)?;
             }
 
             hk.write_density(&mut density)?;
