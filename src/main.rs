@@ -13,6 +13,8 @@ use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, local_anneal, Exponential, CostModel, PopulationModel};
 use hk::models::graph;
 
+const ACC_EPS: f32 = 1e-3;
+
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
 struct Opt {
@@ -185,7 +187,8 @@ fn main() -> std::io::Result<()> {
                         hk.sweep();
                     }
 
-                    if hk.acc_change < 1e-4 || (args.iterations > 0 && ctr > args.iterations) {
+
+                    if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
                         write!(output, "# sweeps: {}\n", ctr)?;
                         hk.fill_density();
                         break;
@@ -231,7 +234,7 @@ fn main() -> std::io::Result<()> {
                         ctr += 1;
                         hk.sweep();
                         // hk.sweep_synchronous();
-                        if hk.acc_change < 1e-7 {
+                        if hk.acc_change < ACC_EPS {
                             write!(output, "# sweeps: {}\n", ctr)?;
                             // hk.write_equilibrium(&mut output)?;
                             hk.write_cluster_sizes(&mut output_cluster)?;
@@ -359,7 +362,7 @@ fn main() -> std::io::Result<()> {
                         hk.sweep();
                     }
 
-                    if hk.acc_change < 1e-4 || (args.iterations > 0 && ctr > args.iterations) {
+                    if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
                         write!(output, "# sweeps: {}\n", ctr)?;
                         hk.fill_density();
                         break;

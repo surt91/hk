@@ -13,7 +13,7 @@ use ordered_float::OrderedFloat;
 
 /// maximal time to save density information for
 const THRESHOLD: usize = 4000;
-const EPS: f32 = 1e-5;
+const EPS: f32 = 1e-4;
 const DENSITYBINS: usize = 100;
 
 #[derive(PartialEq, Clone)]
