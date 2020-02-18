@@ -92,6 +92,13 @@ struct Opt {
     outname: std::path::PathBuf,
 }
 
+fn zip(name: &std::path::PathBuf) {
+    Command::new("gzip")
+        .arg(format!("{}", name.to_str().unwrap()))
+        .output()
+        .expect("failed to zip output file");
+}
+
 // TODO: I should introduce the trait `model` and make everything below more generic
 // a model should implement sweep, write_state and write_gp
 
@@ -343,9 +350,10 @@ fn main() -> std::io::Result<()> {
 
             // let outname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
-            let mut entropy = File::create(args.outname.with_extension("entropy.dat"))?;
-            let mut output_graph = File::create(args.outname.with_extension("scc.dat"))?;
+            let sccname = args.outname.with_extension("scc.dat");
+            let densityname = args.outname.with_extension("density.dat");
+            let mut density = File::create(&densityname)?;
+            let mut output_graph = File::create(&sccname)?;
             let mut output = File::create(&clustername)?;
 
             for _ in 0..args.samples {
@@ -378,10 +386,11 @@ fn main() -> std::io::Result<()> {
             hk.write_density(&mut density)?;
 
             drop(output);
-            Command::new("gzip")
-                .arg(format!("{}", clustername.to_str().unwrap()))
-                .output()
-                .expect("failed to zip output file");
+            drop(output_graph);
+            drop(density);
+            zip(&clustername);
+            zip(&sccname);
+            zip(&densityname);
 
             Ok(())
         },
