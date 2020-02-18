@@ -352,7 +352,9 @@ fn main() -> std::io::Result<()> {
             let clustername = args.outname.with_extension("cluster.dat");
             let sccname = args.outname.with_extension("scc.dat");
             let densityname = args.outname.with_extension("density.dat");
+            let entropyname = args.outname.with_extension("entropy.dat");
             let mut density = File::create(&densityname)?;
+            let mut entropy = File::create(&entropyname)?;
             let mut output_graph = File::create(&sccname)?;
             let mut output = File::create(&clustername)?;
 
@@ -384,13 +386,16 @@ fn main() -> std::io::Result<()> {
             }
 
             hk.write_density(&mut density)?;
+            hk.write_entropy(&mut entropy)?;
 
             drop(output);
             drop(output_graph);
             drop(density);
+            drop(entropy);
             zip(&clustername);
             zip(&sccname);
             zip(&densityname);
+            zip(&entropyname);
 
             Ok(())
         },

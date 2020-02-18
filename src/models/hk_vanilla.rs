@@ -183,6 +183,7 @@ pub struct HegselmannKrause {
     pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
     dynamic_density: Vec<Vec<u64>>,
+    entropies_acc: Vec<f32>,
 
     pub ji: Vec<f32>,
     pub jin: Vec<i32>,
@@ -243,6 +244,7 @@ impl HegselmannKrause {
             ji: Vec::new(),
             jin: Vec::new(),
             density_slice: vec![0; DENSITYBINS+1],
+            entropies_acc: Vec::new(),
             rng,
         };
 
@@ -543,6 +545,17 @@ impl HegselmannKrause {
                 self.dynamic_density[self.time][i] += self.density_slice[i];
             }
         }
+
+        let entropy = self.density_slice.iter().map(|x| {
+            let p = *x as f32 / self.num_agents as f32;
+            if x > &0 {-p * p.ln()} else {0.}
+        }).sum();
+
+        if self.entropies_acc.len() <= self.time {
+            self.entropies_acc.push(entropy)
+        } else {
+            self.entropies_acc[self.time] += entropy;
+        }
     }
 
     pub fn fill_density(&mut self) {
@@ -555,6 +568,17 @@ impl HegselmannKrause {
                     self.dynamic_density[j][i] += self.density_slice[i];
                 }
             }
+
+            let entropy = self.density_slice.iter().map(|x| {
+                let p = *x as f32 / self.num_agents as f32;
+                if x > &0 {-p * p.ln()} else {0.}
+            }).sum();
+            if self.entropies_acc.len() <= j {
+                self.entropies_acc.push(entropy);
+            } else {
+                self.entropies_acc[j] += entropy;
+            }
+
             j += 1;
         }
     }
@@ -562,6 +586,13 @@ impl HegselmannKrause {
     pub fn write_density(&self, file: &mut File) -> std::io::Result<()> {
         let string_list = self.dynamic_density.iter()
             .map(|x| x.iter().join(" "))
+            .join("\n");
+        write!(file, "{}\n", string_list)
+    }
+
+    pub fn write_entropy(&self, file: &mut File) -> std::io::Result<()> {
+        let string_list = self.entropies_acc.iter()
+            .map(|x| x.to_string())
             .join("\n");
         write!(file, "{}\n", string_list)
     }
