@@ -10,7 +10,7 @@ use itertools::Itertools;
 use hk::{HegselmannKrauseBuilder,HegselmannKrause};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, local_anneal, Exponential, CostModel, PopulationModel};
+use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, PopulationModel};
 use hk::models::graph;
 
 const ACC_EPS: f32 = 1e-3;
@@ -60,6 +60,10 @@ struct Opt {
     /// start resources for HKAC
     start_resources: f64,
 
+    #[structopt(short = "T", long, default_value = "1.")]
+    /// temperature (only for fixed temperature 8)
+    temperature: f64,
+
     #[structopt(short, long, default_value = "1")]
     /// seed to use for the simulation
     seed: u64,
@@ -76,7 +80,7 @@ struct Opt {
     /// number of times to repeat the simulation
     samples: u32,
 
-    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7"])]
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8"])]
     /// which model to simulate:
     /// 1 -> Hegselmann Krause,
     /// 2 -> multidimensional Hegselmann Krause (Lorenz)
@@ -85,6 +89,7 @@ struct Opt {
     /// 5 -> HK with passive cost
     /// 6 -> HK annealing with cost and resources
     /// 7 -> HK annealing with local energy
+    /// 8 -> HK annealing with constant temperature
     model: u32,
 
     #[structopt(short, long, default_value = "out", parse(from_os_str))]
@@ -107,8 +112,8 @@ fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &std::path::PathBuf) -> Resul
     println!("{:?}", dotname);
     let mut dotfile = File::create(&dotname)?;
     let g = graph::from_hk(&hk);
-    let g2 = graph::condense(&g);
-    let dot = graph::dot(&g2);
+    // let g = graph::condense(&g);
+    let dot = graph::dot(&g);
     write!(dotfile, "{}\n", dot)?;
     drop(dotfile);
     let dotimage = Command::new("fdp")
@@ -180,6 +185,8 @@ fn main() -> std::io::Result<()> {
             let mut density = File::create(&densityname)?;
             let mut output = File::create(&clustername)?;
 
+            // let mut mean_sweeps = 0.;
+
             for _ in 0..args.samples {
                 hk.reset();
 
@@ -197,6 +204,7 @@ fn main() -> std::io::Result<()> {
 
                     if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
                         write!(output, "# sweeps: {}\n", ctr)?;
+                        // mean_sweeps += ctr as f64 / args.samples as f64;
                         hk.fill_density();
                         break;
                     }
@@ -206,6 +214,8 @@ fn main() -> std::io::Result<()> {
             }
 
             hk.write_density(&mut density)?;
+
+            // println!("{}", mean_sweeps);
 
             drop(output);
             Command::new("gzip")
@@ -358,7 +368,7 @@ fn main() -> std::io::Result<()> {
             let mut output_graph = File::create(&sccname)?;
             let mut output = File::create(&clustername)?;
 
-            for _ in 0..args.samples {
+            for n in 0..args.samples {
                 hk.reset();
 
                 let mut ctr = 0;
@@ -383,10 +393,13 @@ fn main() -> std::io::Result<()> {
 
                 let clusters = cluster_sizes_from_graph(&hk);
                 write_cluster_sizes(&clusters, &mut output_graph)?;
+
+                // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
             }
 
             hk.write_density(&mut density)?;
             hk.write_entropy(&mut entropy)?;
+
 
             drop(output);
             drop(output_graph);
@@ -488,6 +501,68 @@ fn main() -> std::io::Result<()> {
                 .arg(format!("{}", clustername.to_str().unwrap()))
                 .output()
                 .expect("failed to zip output file");
+
+            Ok(())
+        },
+        8 => {
+            use rand::SeedableRng;
+            use rand_pcg::Pcg64;
+
+            let mut hk = HegselmannKrauseBuilder::new(
+                args.num_agents,
+                args.min_tolerance as f32,
+                args.max_tolerance as f32,
+            ).seed(args.seed)
+            .eta(args.eta as f32)
+            .cost_model(CostModel::Annealing)
+            .population_model(pop_model)
+            .resources(args.min_resources as f32, args.max_resources as f32)
+            .build();
+
+            let mut rng = Pcg64::seed_from_u64(args.seed);
+
+            let clustername = args.outname.with_extension("cluster.dat");
+            let densityname = args.outname.with_extension("density.dat");
+            let energyname = args.outname.with_extension("energy.dat");
+            let entropyname = args.outname.with_extension("entropy.dat");
+            let changesname = args.outname.with_extension("changes.dat");
+            let mut output = File::create(&clustername)?;
+            let mut density = File::create(&densityname)?;
+            let mut energy = File::create(&energyname)?;
+            let mut entropy = File::create(&entropyname)?;
+            let mut changes = File::create(&changesname)?;
+
+            for _n in 0..args.samples {
+                let schedule = Constant::new(args.temperature as f32, args.iterations as usize);
+                hk.reset();
+                for t in schedule {
+                    hk.acc_change = 0.;
+                    let e = anneal_sweep(&mut hk, &mut rng, t);
+                    write!(energy, "{}\n", e)?;
+                    write!(changes, "{}\n", hk.acc_change)?;
+                    hk.add_state_to_density();
+                    hk.time += 1;
+                }
+
+                // hk.write_cluster_sizes(&mut output)?;
+                let clusters = cluster_sizes_from_graph(&hk);
+                write_cluster_sizes(&clusters, &mut output)?;
+                write_entropy(&clusters, &mut entropy)?;
+            }
+
+            hk.write_density(&mut density)?;
+
+            drop(output);
+            drop(density);
+            drop(energy);
+            drop(entropy);
+            drop(changes);
+
+            zip(&clustername);
+            zip(&densityname);
+            zip(&energyname);
+            zip(&entropyname);
+            zip(&changesname);
 
             Ok(())
         },

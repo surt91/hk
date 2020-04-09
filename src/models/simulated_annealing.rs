@@ -30,6 +30,7 @@ pub trait Model {
     fn change<R>(&mut self, rng: &mut R) -> (usize, f32, f32) where R: Rng;
     fn undo(&mut self, undo_info: (usize, f32));
     fn notify_sweep(&mut self);
+    fn accumulate_change(&mut self, diff: f32);
 }
 
 impl Model for HegselmannKrause {
@@ -113,10 +114,10 @@ impl Model for HegselmannKrause {
             self.ji[idx] += (i.opinion - i.initial_opinion).powf(2.) * self.eta;
         }
 
-
         self.ji[current] /= self.jin[current] as f32;
         self.ji[current] += self.eta*(new - self.agents[current].initial_opinion).powf(2.);
 
+        // self.ji[current]
         self.ji.iter().sum::<f32>()
     }
 
@@ -124,16 +125,18 @@ impl Model for HegselmannKrause {
         let idx: usize = (rng.gen::<f32>() * self.size() as f32) as usize;
 
         let old_x = self.agents[idx].opinion;
+        if self.agents[idx].resources < 0. && self.eta > 0. {
+            return (idx, old_x, old_x)
+        }
+
         // let mut new_x = old_x + 0.1 * (rng.gen::<f32>() - 0.5);
         // if new_x < 0. {
         //     new_x *= -1.;
         // } else if new_x > 1. {
         //     new_x = 2. - new_x
         // }
+
         let new_x = rng.gen::<f32>();
-        if self.agents[idx].resources < 0. && self.eta > 0. {
-            return (idx, old_x, old_x)
-        }
 
         self.update_entry(old_x, new_x);
 
@@ -157,6 +160,10 @@ impl Model for HegselmannKrause {
         self.agents[idx].opinion = old_x;
     }
 
+    fn accumulate_change(&mut self, diff: f32) {
+        self.acc_change += diff.abs();
+    }
+
     fn size(&self) -> usize {
         self.num_agents as usize
     }
@@ -165,10 +172,6 @@ impl Model for HegselmannKrause {
         self.add_state_to_density();
         self.time += 1;
     }
-}
-
-struct Powerlaw {
-    state: f32
 }
 
 pub struct Linear {
@@ -237,28 +240,68 @@ impl Iterator for Exponential {
     }
 }
 
+pub struct Constant {
+    limit: usize,
+    count: usize,
+    temperature: f32
+}
+
+impl Constant {
+    pub fn new(temperature: f32, count: usize) -> Constant {
+        Constant {
+            limit: count,
+            count: 0,
+            temperature,
+        }
+    }
+}
+
+impl Iterator for Constant {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.count += 1;
+
+        if self.count < self.limit {
+            Some(self.temperature)
+        } else {
+            None
+        }
+    }
+}
+
+pub fn anneal_sweep<T, R>(model: &mut T, mut rng: &mut R, t: f32) -> f32
+        where T: Model, R: Rng {
+    let mut e_before = model.energy();
+    model.init_ji();
+    // let mut tries = 0;
+    // let mut reject = 0;
+    for _ in 0..model.size() {
+        let (idx, old, new) = model.change(&mut rng);
+        let undo_info = (idx, old);
+        // let e_after = model.energy();
+        let e_after = model.energy_incremental(idx, old, new);
+        // tries += 1;
+        if (-(e_after - e_before) / t).exp() < rng.gen() {
+            model.energy_incremental(idx, new, old);
+            model.undo(undo_info);
+            // reject += 1;
+        } else {
+            e_before = e_after;
+            model.accumulate_change(new-old);
+        }
+    }
+    model.energy()
+}
+
 pub fn anneal<T, S, R>(model: &mut T, schedule: S, mut rng: &mut R) -> f32
         where T: Model, S: Iterator<Item = f32>, R: Rng {
-    let mut e_before = model.energy();
     model.init_ji();
 
     for t in schedule {
         // let mut tries = 0;
         // let mut reject = 0;
-        for _ in 0..model.size() {
-            let (idx, old, new) = model.change(&mut rng);
-            let undo_info = (idx, old);
-            // let e_after = model.energy();
-            let e_after = model.energy_incremental(idx, old, new);
-            // tries += 1;
-            if (-(e_after - e_before) / t).exp() < rng.gen() {
-                model.energy_incremental(idx, new, old);
-                model.undo(undo_info);
-                // reject += 1;
-            } else {
-                e_before = e_after;
-            }
-        }
+        anneal_sweep(model, &mut rng, t);
         // println!("{}: {:.0}%", t, reject as f32 / tries as f32 * 100.);
         model.notify_sweep();
     }

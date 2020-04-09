@@ -494,7 +494,7 @@ impl HegselmannKrause {
         let mut clusters: Vec<Vec<HKAgent>> = Vec::new();
         'agent: for i in &self.agents {
             for c in &mut clusters {
-                if (i.opinion - &c[0].opinion).abs() < EPS {
+                if (i.opinion - c[0].opinion).abs() < EPS {
                     c.push(i.clone());
                     continue 'agent;
                 }

@@ -12,6 +12,6 @@ pub use hk_vanilla::{CostModel, PopulationModel};
 pub use hk_lorenz::HegselmannKrauseLorenz;
 pub use hk_lorenz_singleupdate::HegselmannKrauseLorenzSingle;
 
-pub use simulated_annealing::anneal;
-pub use simulated_annealing::{Exponential, Linear, Model};
+pub use simulated_annealing::{anneal, anneal_sweep};
+pub use simulated_annealing::{Exponential, Linear, Constant, Model};
 pub use local_simulated_annealing::local_anneal;
