@@ -76,6 +76,10 @@ struct Opt {
     /// synchronous update instead of random sequential
     sync: bool,
 
+    #[structopt(long)]
+    /// also calculate SCC cluster (needs more memory to hold a graph structure)
+    scc: bool,
+
     #[structopt(long, default_value = "1")]
     /// number of times to repeat the simulation
     samples: u32,
@@ -391,8 +395,10 @@ fn main() -> std::io::Result<()> {
                 }
                 hk.write_cluster_sizes(&mut output)?;
 
-                let clusters = cluster_sizes_from_graph(&hk);
-                write_cluster_sizes(&clusters, &mut output_graph)?;
+                if args.scc {
+                    let clusters = cluster_sizes_from_graph(&hk);
+                    write_cluster_sizes(&clusters, &mut output_graph)?;
+                }
 
                 // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
             }
@@ -443,10 +449,13 @@ fn main() -> std::io::Result<()> {
                 let e = anneal(&mut hk, schedule, &mut rng);
                 write!(energy, "{}\n", e)?;
 
-                // hk.write_cluster_sizes(&mut output)?;
-                let clusters = cluster_sizes_from_graph(&hk);
-                write_cluster_sizes(&clusters, &mut output)?;
-                write_entropy(&clusters, &mut entropy)?;
+                if args.scc {
+                    let clusters = cluster_sizes_from_graph(&hk);
+                    write_cluster_sizes(&clusters, &mut output)?;
+                    write_entropy(&clusters, &mut entropy)?;
+                } else {
+                    hk.write_cluster_sizes(&mut output)?;
+                }
 
                 // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
                 // println!("{}", hk.agents.iter().filter(|x| x.resources > 0.).count())
