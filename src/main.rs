@@ -414,10 +414,12 @@ fn main() -> std::io::Result<()> {
             drop(output_graph);
             drop(density);
             drop(entropy);
+            drop(nopoor);
             zip(&clustername);
             zip(&sccname);
             zip(&densityname);
             zip(&entropyname);
+            zip(&nopoorname);
 
             Ok(())
         },
