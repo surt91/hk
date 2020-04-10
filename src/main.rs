@@ -364,6 +364,7 @@ fn main() -> std::io::Result<()> {
 
             // let outname = args.outname.with_extension("dat");
             let clustername = args.outname.with_extension("cluster.dat");
+            let nopoorname = args.outname.with_extension("nopoor.dat");
             let sccname = args.outname.with_extension("scc.dat");
             let densityname = args.outname.with_extension("density.dat");
             let entropyname = args.outname.with_extension("entropy.dat");
@@ -371,6 +372,7 @@ fn main() -> std::io::Result<()> {
             let mut entropy = File::create(&entropyname)?;
             let mut output_graph = File::create(&sccname)?;
             let mut output = File::create(&clustername)?;
+            let mut nopoor = File::create(&nopoorname)?;
 
             for n in 0..args.samples {
                 hk.reset();
@@ -394,6 +396,7 @@ fn main() -> std::io::Result<()> {
                     hk.acc_change = 0.;
                 }
                 hk.write_cluster_sizes(&mut output)?;
+                hk.write_cluster_sizes_nopoor(&mut nopoor)?;
 
                 if args.scc {
                     let clusters = cluster_sizes_from_graph(&hk);

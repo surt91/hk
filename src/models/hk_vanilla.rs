@@ -504,6 +504,21 @@ impl HegselmannKrause {
         clusters
     }
 
+    /// A cluster are agents whose distance is less than EPS
+    fn list_clusters_nopoor(&self) -> Vec<Vec<HKAgent>> {
+        let mut clusters: Vec<Vec<HKAgent>> = Vec::new();
+        'agent: for i in &self.agents {
+            for c in &mut clusters {
+                if (i.opinion - c[0].opinion).abs() < EPS && i.resources > 1e-4 {
+                    c.push(i.clone());
+                    continue 'agent;
+                }
+            }
+            clusters.push(vec![i.clone(); 1])
+        }
+        clusters
+    }
+
     pub fn cluster_sizes(&self) -> Vec<usize> {
         let clusters = self.list_clusters();
         clusters.iter()
@@ -513,6 +528,21 @@ impl HegselmannKrause {
 
     pub fn write_cluster_sizes(&self, file: &mut File) -> std::io::Result<()> {
         let clusters = self.list_clusters();
+
+        let string_list = clusters.iter()
+            .map(|c| c[0].opinion)
+            .join(" ");
+        write!(file, "# {}\n", string_list)?;
+
+        let string_list = clusters.iter()
+            .map(|c| c.len().to_string())
+            .join(" ");
+        write!(file, "{}\n", string_list)?;
+        Ok(())
+    }
+
+    pub fn write_cluster_sizes_nopoor(&self, file: &mut File) -> std::io::Result<()> {
+        let clusters = self.list_clusters_nopoor();
 
         let string_list = clusters.iter()
             .map(|c| c[0].opinion)
