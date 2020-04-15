@@ -117,7 +117,7 @@ for p in ps:
     # )
 
     with open("plots/fwhp_n{}.dat".format(p["num_agents"]), "a") as f:
-        f.write("{} {} {} {} {} {} {} {} {}\n".format(
+        f.write("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(
             p["eta"],
             mean_num_clusters, mean_num_clusters_err,
             mean_largest_cluster_size, mean_largest_cluster_size_err,
