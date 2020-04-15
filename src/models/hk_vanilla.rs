@@ -514,7 +514,9 @@ impl HegselmannKrause {
                     continue 'agent;
                 }
             }
-            clusters.push(vec![i.clone(); 1])
+            if i.resources > 1e-4 {
+                clusters.push(vec![i.clone(); 1])
+            }
         }
         clusters
     }
