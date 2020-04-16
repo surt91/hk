@@ -18,10 +18,10 @@ const DENSITYBINS: usize = 100;
 
 #[derive(PartialEq, Clone)]
 pub enum CostModel {
-    Rebounce,
-    Change,
+    Rebounce(f32),
+    Change(f32),
     Free,
-    Annealing,
+    Annealing(f32),
 }
 
 #[derive(PartialEq, Clone)]
@@ -80,7 +80,6 @@ pub struct HegselmannKrauseBuilder {
     cost_model: CostModel,
     resource_model: ResourceModel,
     population_model: PopulationModel,
-    eta: f32,
 
     seed: u64,
 }
@@ -93,7 +92,6 @@ impl HegselmannKrauseBuilder {
             cost_model: CostModel::Free,
             resource_model: ResourceModel::Uniform(0., 0.5),
             population_model: PopulationModel::Uniform(0., 1.),
-            eta: 0.,
 
             seed: 42,
         }
@@ -111,11 +109,6 @@ impl HegselmannKrauseBuilder {
 
     pub fn population_model(&mut self, population_model: PopulationModel) -> &mut HegselmannKrauseBuilder {
         self.population_model = population_model;
-        self
-    }
-
-    pub fn eta(&mut self, eta: f32) -> &mut HegselmannKrauseBuilder {
-        self.eta = eta;
         self
     }
 
@@ -140,7 +133,6 @@ impl HegselmannKrauseBuilder {
             cost_model: self.cost_model.clone(),
             resource_model: self.resource_model.clone(),
             population_model: self.population_model.clone(),
-            eta: self.eta,
             opinion_set,
             acc_change: 0.,
             dynamic_density,
@@ -164,7 +156,6 @@ pub struct HegselmannKrause {
     pub cost_model: CostModel,
     resource_model: ResourceModel,
     population_model: PopulationModel,
-    pub eta: f32,
 
     pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
@@ -298,7 +289,7 @@ impl HegselmannKrause {
         let mut new_resources = i.resources;
         match self.cost_model {
             CostModel::Free => {},
-            CostModel::Rebounce => {
+            CostModel::Rebounce(eta) => {
                 new_resources -= (i.initial_opinion - new_opinion).abs();
                 if new_resources < 0. {
                     if i.initial_opinion > new_opinion {
@@ -309,18 +300,18 @@ impl HegselmannKrause {
                     new_resources = 0.;
                 }
             }
-            CostModel::Change => {
-                new_resources -= self.eta * (i.opinion - new_opinion).abs();
+            CostModel::Change(eta) => {
+                new_resources -= eta * (i.opinion - new_opinion).abs();
                 if new_resources < 0. {
                     if i.opinion > new_opinion {
-                        new_opinion -= new_resources / self.eta;
+                        new_opinion -= new_resources / eta;
                     } else {
-                        new_opinion += new_resources / self.eta;
+                        new_opinion += new_resources / eta;
                     }
                     new_resources = 0.;
                 }
             }
-            CostModel::Annealing => {
+            CostModel::Annealing(eta) => {
                 panic!("CostModel::Annealing may not be used with the deterministic dynamics!")
             }
         }

@@ -15,7 +15,7 @@ use ordered_float::OrderedFloat;
 use std::ops::Bound::Included;
 
 
-use super::HegselmannKrause;
+use super::{HegselmannKrause, CostModel};
 
 pub trait LocalModel {
     fn size(&self) -> usize;
@@ -30,9 +30,17 @@ pub trait LocalModel {
     fn change<R>(&mut self, idx: usize, rng: &mut R) -> (usize, f32, f32) where R: Rng;
     fn undo(&mut self, undo_info: (usize, f32));
     fn notify_sweep(&mut self);
+    fn eta(&self) -> f32;
 }
 
 impl LocalModel for HegselmannKrause {
+    fn eta(&self) -> f32 {
+        match self.cost_model {
+            CostModel::Annealing(eta) => eta,
+            _ => unreachable!()
+        }
+    }
+
     fn init_ji(&mut self) {
         self.ji = (0..self.num_agents as usize).map(|idx| {
             let i = &self.agents[idx];
@@ -42,7 +50,7 @@ impl LocalModel for HegselmannKrause {
                 .map(|(j, ctr)| (j.into_inner(), ctr))
                 .fold((0., 0), |(sum, count), (j, ctr)| (sum + *ctr as f32 * (j-i.opinion).powf(2.), count + ctr));
 
-            sum / count as f32 + self.eta*(i.opinion - i.initial_opinion).powf(2.)
+            sum / count as f32 + self.eta()*(i.opinion - i.initial_opinion).powf(2.)
         }).collect();
 
         self.jin = (0..self.num_agents as usize).map(|idx| {
@@ -78,7 +86,7 @@ impl LocalModel for HegselmannKrause {
             }
 
             // first we need to remove the cost of being too far away from the start
-            self.ji[idx] -= (i.opinion - i.initial_opinion).powf(2.) * self.eta;
+            self.ji[idx] -= (i.opinion - i.initial_opinion).powf(2.) * self.eta();
 
             // if we had influence before, remove it
             if (i.opinion - old).abs() < i.tolerance {
@@ -101,18 +109,18 @@ impl LocalModel for HegselmannKrause {
             }
 
             // in the end we have to reintroduce the cost of being too far away from the start
-            self.ji[idx] += (i.opinion - i.initial_opinion).powf(2.) * self.eta;
+            self.ji[idx] += (i.opinion - i.initial_opinion).powf(2.) * self.eta();
         }
 
         self.ji[current] /= self.jin[current] as f32;
-        self.ji[current] += self.eta*(new - self.agents[current].initial_opinion).powf(2.);
+        self.ji[current] += self.eta()*(new - self.agents[current].initial_opinion).powf(2.);
 
         self.ji[current]
     }
 
     fn change<R>(&mut self, idx: usize, rng: &mut R) -> (usize, f32, f32) where R: Rng {
         let old_x = self.agents[idx].opinion;
-        if self.agents[idx].resources < 0. && self.eta > 0. {
+        if self.agents[idx].resources < 0. && self.eta() > 0. {
             return (idx, old_x, old_x)
         }
 
