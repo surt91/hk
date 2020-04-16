@@ -1,7 +1,7 @@
 extern crate hk;
 use hk::HegselmannKrauseBuilder;
 
-use hk::Model;
+use hk::{Model, CostModel, PopulationModel};
 
 #[cfg(test)]
 mod tests {
@@ -10,10 +10,12 @@ mod tests {
 
     #[test]
     fn test_cmp_naive_bisect() {
-        let mut hk1 = HegselmannKrauseBuilder::new(100, 0., 1.)
+        let mut hk1 = HegselmannKrauseBuilder::new(100)
+            .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
             .build();
-        let mut hk2 = HegselmannKrauseBuilder::new(100, 0., 1.)
+        let mut hk2 = HegselmannKrauseBuilder::new(100)
+            .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
             .build();
 
@@ -29,10 +31,12 @@ mod tests {
 
     #[test]
     fn test_cmp_sync() {
-        let mut hk1 = HegselmannKrauseBuilder::new(100, 0., 1.)
+        let mut hk1 = HegselmannKrauseBuilder::new(100)
+            .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
             .build();
-        let mut hk2 = HegselmannKrauseBuilder::new(100, 0., 1.)
+        let mut hk2 = HegselmannKrauseBuilder::new(100)
+            .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
             .build();
 
@@ -51,9 +55,10 @@ mod tests {
         use rand_pcg::Pcg64;
         let mut rng = Pcg64::seed_from_u64(42);
 
-        let mut hk = HegselmannKrauseBuilder::new(100, 0., 1.)
+        let mut hk = HegselmannKrauseBuilder::new(100)
             .seed(13)
-            .eta(0.5)
+            .population_model(PopulationModel::Uniform(0., 1.))
+            .cost_model(CostModel::Annealing(0.5))
             .build();
 
         hk.init_ji();
