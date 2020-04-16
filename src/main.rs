@@ -180,7 +180,7 @@ fn main() -> std::io::Result<()> {
         _ => unreachable!(),
     };
 
-    let cost_model = match args.resource_distribution {
+    let cost_model = match args.model {
         1 => CostModel::Free,
         3 => CostModel::Rebounce,
         5 => CostModel::Change(args.eta as f32),
