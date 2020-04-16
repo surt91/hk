@@ -192,7 +192,11 @@ fn main() -> std::io::Result<()> {
 
     let resource_model = match args.resource_distribution {
         1 => ResourceModel::Uniform(args.min_resources as f32, args.max_resources as f32),
-        2 => ResourceModel::Pareto(args.min_resources as f32, args.max_resources as f32),
+        2 => {
+            let k = 1.5; // corresponds to an exponent of -2.5
+            let x_min = (args.min_resources + args.max_resources) as f32 / 2. * (k - 1.) / k;
+            ResourceModel::Pareto(x_min, k + 1.)
+        },
         3 => {
             let prop = (args.min_resources + args.max_resources) / (args.min_tolerance + args.max_tolerance);
             ResourceModel::Proportional(prop as f32)
