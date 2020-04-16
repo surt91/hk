@@ -180,6 +180,16 @@ fn main() -> std::io::Result<()> {
         _ => unreachable!(),
     };
 
+    let cost_model = match args.resource_distribution {
+        1 => CostModel::Free,
+        3 => CostModel::Rebounce,
+        5 => CostModel::Change(args.eta as f32),
+        _ => {
+            println!("Warning: you use a not well tested secondary type!");
+            CostModel::Free
+        },
+    };
+
     let resource_model = match args.resource_distribution {
         1 => ResourceModel::Uniform(args.min_resources as f32, args.max_resources as f32),
         2 => ResourceModel::Pareto(args.min_resources as f32, args.max_resources as f32),
@@ -191,169 +201,11 @@ fn main() -> std::io::Result<()> {
     };
 
     match args.model {
-        1 => {
+        1 | 3 | 5 => {
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
-            .cost_model(CostModel::Free)
-            .population_model(pop_model)
-            .resource_model(resource_model)
-            .build();
-
-            // let outname = args.outname.with_extension("dat");
-            let clustername = args.outname.with_extension("cluster.dat");
-            let densityname = args.outname.with_extension("density.dat");
-            let mut density = File::create(&densityname)?;
-            let mut output = File::create(&clustername)?;
-
-            // let mut mean_sweeps = 0.;
-
-            for _ in 0..args.samples {
-                hk.reset();
-
-                let mut ctr = 0;
-                loop {
-                    // test if we are converged
-                    ctr += 1;
-
-                    if args.sync {
-                        hk.sweep_synchronous();
-                    } else {
-                        hk.sweep();
-                    }
-
-
-                    if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
-                        writeln!(output, "# sweeps: {}", ctr)?;
-                        // mean_sweeps += ctr as f64 / args.samples as f64;
-                        hk.fill_density();
-                        break;
-                    }
-                    hk.acc_change = 0.;
-                }
-                hk.write_cluster_sizes(&mut output)?;
-            }
-
-            hk.write_density(&mut density)?;
-
-            // println!("{}", mean_sweeps);
-
-            drop(output);
-            zip(&clustername);
-            drop(density);
-            zip(&densityname);
-
-            Ok(())
-        },
-        2 => {
-            let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
-
-            let dataname = args.outname.with_extension("dat");
-            let clustername = args.outname.with_extension("cluster.dat");
-
-            let mut output = File::create(&dataname)?;
-            let mut output_cluster = File::create(&clustername)?;
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
-
-            // simulate until converged
-            if args.iterations == 0 {
-                for _ in 0..args.samples {
-                    hk.reset();
-                    let mut ctr = 0;
-                    loop {
-                        // test if we are converged
-                        ctr += 1;
-                        hk.sweep();
-                        // hk.sweep_synchronous();
-                        if hk.acc_change < ACC_EPS {
-                            writeln!(output, "# sweeps: {}", ctr)?;
-                            // hk.write_equilibrium(&mut output)?;
-                            hk.write_cluster_sizes(&mut output_cluster)?;
-                            break;
-                        }
-                        hk.acc_change = 0.;
-                    }
-                }
-                drop(output_cluster);
-                zip(&clustername);
-            }
-            // } else {
-            //     unimplemented!();
-            //     let mut gp = File::create(args.outname.with_extension("gp"))?;
-            //     hk.write_gp(&mut gp, dataname.to_str().unwrap())?;
-            //     for _ in 0..args.iterations {
-            //         hk.sweep();
-            //
-            //         hk.acc_change = 0.;
-            //         hk.write_state(&mut output)?;
-            //     }
-            //     hk.write_cluster_sizes(&mut output_cluster)?;
-            // }
-            hk.write_density(&mut density)?;
-            Ok(())
-        },
-        3 => {
-            let mut hk = HegselmannKrauseBuilder::new(
-                args.num_agents,
-            ).seed(args.seed)
-            .cost_model(CostModel::Rebounce)
-            .resource_model(resource_model)
-            .population_model(pop_model)
-            .build();
-
-            // let outname = args.outname.with_extension("dat");
-            // let mut gp = File::create(args.outname.with_extension("gp"))?;
-            // hk.write_gp(&mut gp, outname.to_str().unwrap())?;
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
-
-            // let mut output = File::create(outname)?;
-            for _ in 0..args.samples {
-                for _ in 0..args.iterations {
-                    hk.sweep();
-                    // hk.write_state(&mut output)?;
-                }
-            }
-            hk.write_density(&mut density)?;
-            Ok(())
-        },
-        4 => {
-            let mut hk = HegselmannKrauseLorenzSingle::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
-
-            // let dataname = args.outname.with_extension("dat");
-            let clustername = args.outname.with_extension("cluster.dat");
-
-            // let mut output = File::create(&dataname)?;
-            let mut output_cluster = File::create(&clustername)?;
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
-
-            for _ in 0..args.samples {
-                hk.reset();
-                // let mut ctr = 0;
-                for _ in 0..args.iterations {
-                    // test if we are converged
-                    // ctr += 1;
-                    hk.sweep();
-                    // hk.sweep_synchronous();
-                    // if hk.acc_change < 1e-7 {
-                    //     write!(output, "# sweeps: {}\n", ctr)?;
-                    //     // hk.write_equilibrium(&mut output)?;
-                    //     hk.write_cluster_sizes(&mut output_cluster)?;
-                    //     break;
-                    // }
-                    hk.acc_change = 0.;
-                }
-                hk.write_cluster_sizes(&mut output_cluster)?;
-            }
-            drop(output_cluster);
-            zip(&clustername);
-            hk.write_density(&mut density)?;
-            Ok(())
-        },
-        5 => {
-            let mut hk = HegselmannKrauseBuilder::new(
-                args.num_agents,
-            ).seed(args.seed)
-            .cost_model(CostModel::Change(args.eta as f32))
+            .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .build();
@@ -405,7 +257,6 @@ fn main() -> std::io::Result<()> {
             hk.write_density(&mut density)?;
             hk.write_entropy(&mut entropy)?;
 
-
             drop(output);
             drop(output_graph);
             drop(density);
@@ -417,6 +268,86 @@ fn main() -> std::io::Result<()> {
             zip(&entropyname);
             zip(&nopoorname);
 
+            Ok(())
+        },
+        2 => {
+            let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
+
+            let dataname = args.outname.with_extension("dat");
+            let clustername = args.outname.with_extension("cluster.dat");
+
+            let mut output = File::create(&dataname)?;
+            let mut output_cluster = File::create(&clustername)?;
+            let mut density = File::create(args.outname.with_extension("density.dat"))?;
+
+            // simulate until converged
+            if args.iterations == 0 {
+                for _ in 0..args.samples {
+                    hk.reset();
+                    let mut ctr = 0;
+                    loop {
+                        // test if we are converged
+                        ctr += 1;
+                        hk.sweep();
+                        // hk.sweep_synchronous();
+                        if hk.acc_change < ACC_EPS {
+                            writeln!(output, "# sweeps: {}", ctr)?;
+                            // hk.write_equilibrium(&mut output)?;
+                            hk.write_cluster_sizes(&mut output_cluster)?;
+                            break;
+                        }
+                        hk.acc_change = 0.;
+                    }
+                }
+                drop(output_cluster);
+                zip(&clustername);
+            }
+            // } else {
+            //     unimplemented!();
+            //     let mut gp = File::create(args.outname.with_extension("gp"))?;
+            //     hk.write_gp(&mut gp, dataname.to_str().unwrap())?;
+            //     for _ in 0..args.iterations {
+            //         hk.sweep();
+            //
+            //         hk.acc_change = 0.;
+            //         hk.write_state(&mut output)?;
+            //     }
+            //     hk.write_cluster_sizes(&mut output_cluster)?;
+            // }
+            hk.write_density(&mut density)?;
+            Ok(())
+        },
+        4 => {
+            let mut hk = HegselmannKrauseLorenzSingle::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
+
+            // let dataname = args.outname.with_extension("dat");
+            let clustername = args.outname.with_extension("cluster.dat");
+
+            // let mut output = File::create(&dataname)?;
+            let mut output_cluster = File::create(&clustername)?;
+            let mut density = File::create(args.outname.with_extension("density.dat"))?;
+
+            for _ in 0..args.samples {
+                hk.reset();
+                // let mut ctr = 0;
+                for _ in 0..args.iterations {
+                    // test if we are converged
+                    // ctr += 1;
+                    hk.sweep();
+                    // hk.sweep_synchronous();
+                    // if hk.acc_change < 1e-7 {
+                    //     write!(output, "# sweeps: {}\n", ctr)?;
+                    //     // hk.write_equilibrium(&mut output)?;
+                    //     hk.write_cluster_sizes(&mut output_cluster)?;
+                    //     break;
+                    // }
+                    hk.acc_change = 0.;
+                }
+                hk.write_cluster_sizes(&mut output_cluster)?;
+            }
+            drop(output_cluster);
+            zip(&clustername);
+            hk.write_density(&mut density)?;
             Ok(())
         },
         6 => {
