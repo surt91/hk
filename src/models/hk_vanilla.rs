@@ -94,7 +94,7 @@ impl HegselmannKrauseBuilder {
             num_agents,
 
             cost_model: CostModel::Free,
-            resource_model: ResourceModel::Uniform(0., 0.5),
+            resource_model: ResourceModel::Uniform(0., 1.),
             population_model: PopulationModel::Uniform(0., 1.),
 
             seed: 42,
