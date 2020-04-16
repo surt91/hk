@@ -27,13 +27,13 @@ struct Opt {
     dimension: u32,
 
     #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6"])]
-    /// distribution of the tolerances epsilon_i
-    /// 1 => uniform between min and max
-    /// 2 => bimodal: half min, half max
-    /// 3 => 15% of agents at x(0) = 0.25+-0.05, with confidence eps = 0.075+-0.05
-    /// 4 => gaussian: min -> mean, max -> variance
-    /// 5 => pareto: min -> lower bound (scale), max -> exponent (= shape+1)
-    /// 6 => power law: min -> lower bound, max -> upper bound, exponent: 2.5
+    /// distribution of the tolerances epsilon_i:{n}
+    /// 1 => uniform between min and max{n}
+    /// 2 => bimodal: half min, half max{n}
+    /// 3 => 15% of agents at x(0) = 0.25+-0.05, with confidence eps = 0.075+-0.05{n}
+    /// 4 => gaussian: min -> mean, max -> variance{n}
+    /// 5 => pareto: min -> lower bound (scale), max -> exponent (= shape+1){n}
+    /// 6 => power law: min -> lower bound, max -> upper bound, exponent: 2.5{n}
     tolerance_distribution: u32,
 
     #[structopt(short = "l", long, default_value = "0.0")]
@@ -45,10 +45,10 @@ struct Opt {
     max_tolerance: f64,
 
     #[structopt(long, default_value = "1", possible_values = &["1", "2", "3"])]
-    /// distribution of the resources c_i
-    /// 1 => uniform between min and max
-    /// 2 => pareto with exponent -2.5
-    /// 3 => proportional to the tolerances but with same average total resources
+    /// distribution of the resources c_i:{n}
+    /// 1 => uniform between min and max{n}
+    /// 2 => pareto with exponent -2.5{n}
+    /// 3 => proportional to the tolerances but with same average total resources{n}
     resource_distribution: u32,
 
     #[structopt(long, default_value = "0")]
@@ -92,15 +92,15 @@ struct Opt {
     samples: u32,
 
     #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8"])]
-    /// which model to simulate:
-    /// 1 -> Hegselmann Krause,
-    /// 2 -> multidimensional Hegselmann Krause (Lorenz)
-    /// 3 -> HK with active cost
-    /// 4 -> multidimensional Hegselmann Krause (Lorenz) but only updating one dimension
-    /// 5 -> HK with passive cost
-    /// 6 -> HK annealing with cost and resources
-    /// 7 -> HK annealing with local energy
-    /// 8 -> HK annealing with constant temperature
+    /// which model to simulate:{n}
+    /// 1 -> Hegselmann Krause,{n}
+    /// 2 -> multidimensional Hegselmann Krause (Lorenz){n}
+    /// 3 -> HK with active cost{n}
+    /// 4 -> multidimensional Hegselmann Krause (Lorenz) but only updating one dimension{n}
+    /// 5 -> HK with passive cost{n}
+    /// 6 -> HK annealing with cost and resources{n}
+    /// 7 -> HK annealing with local energy{n}
+    /// 8 -> HK annealing with constant temperature{n}
     model: u32,
 
     #[structopt(short, long, default_value = "out", parse(from_os_str))]
