@@ -1,3 +1,7 @@
+// we use float comparision to test if an entry did change during an iteration for performance
+// false positives do not lead to wrong results
+#![allow(clippy::float_cmp)]
+
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::fmt;
@@ -475,12 +479,12 @@ impl HegselmannKrause {
         let string_list = clusters.iter()
             .map(|c| c[0].opinion)
             .join(" ");
-        write!(file, "# {}\n", string_list)?;
+        writeln!(file, "# {}", string_list)?;
 
         let string_list = clusters.iter()
             .map(|c| c.len().to_string())
             .join(" ");
-        write!(file, "{}\n", string_list)?;
+        writeln!(file, "{}", string_list)?;
         Ok(())
     }
 
@@ -490,12 +494,12 @@ impl HegselmannKrause {
         let string_list = clusters.iter()
             .map(|c| c[0].opinion)
             .join(" ");
-        write!(file, "# {}\n", string_list)?;
+        writeln!(file, "# {}", string_list)?;
 
         let string_list = clusters.iter()
             .map(|c| c.len().to_string())
             .join(" ");
-        write!(file, "{}\n", string_list)?;
+        writeln!(file, "{}", string_list)?;
         Ok(())
     }
 
@@ -560,28 +564,28 @@ impl HegselmannKrause {
         let string_list = self.dynamic_density.iter()
             .map(|x| x.iter().join(" "))
             .join("\n");
-        write!(file, "{}\n", string_list)
+        writeln!(file, "{}", string_list)
     }
 
     pub fn write_entropy(&self, file: &mut File) -> std::io::Result<()> {
         let string_list = self.entropies_acc.iter()
             .map(|x| x.to_string())
             .join("\n");
-        write!(file, "{}\n", string_list)
+        writeln!(file, "{}", string_list)
     }
 
     pub fn write_state(&self, file: &mut File) -> std::io::Result<()> {
         let string_list = self.agents.iter()
             .map(|j| j.opinion.to_string())
             .join(" ");
-        write!(file, "{}\n", string_list)
+        writeln!(file, "{}", string_list)
     }
 
     pub fn write_gp(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {
-        write!(file, "set terminal pngcairo\n")?;
-        write!(file, "set output '{}.png'\n", outfilename)?;
-        write!(file, "set xl 't'\n")?;
-        write!(file, "set yl 'x_i'\n")?;
+        writeln!(file, "set terminal pngcairo")?;
+        writeln!(file, "set output '{}.png'", outfilename)?;
+        writeln!(file, "set xl 't'")?;
+        writeln!(file, "set yl 'x_i'")?;
         write!(file, "p '{}' u 0:1 w l not, ", outfilename)?;
 
         let string_list = (2..self.num_agents)

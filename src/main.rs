@@ -110,7 +110,7 @@ struct Opt {
 
 fn zip(name: &std::path::PathBuf) {
     Command::new("gzip")
-        .arg(format!("{}", name.to_str().unwrap()))
+        .arg(name.to_str().unwrap())
         .output()
         .expect("failed to zip output file");
 }
@@ -125,15 +125,15 @@ fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &std::path::PathBuf) -> Resul
     let g = graph::from_hk(&hk);
     // let g = graph::condense(&g);
     let dot = graph::dot(&g);
-    write!(dotfile, "{}\n", dot)?;
+    writeln!(dotfile, "{}", dot)?;
     drop(dotfile);
     let dotimage = Command::new("fdp")
-        .arg(format!("{}", dotname.to_str().unwrap()))
+        .arg(dotname.to_str().unwrap())
         .arg("-Tpng")
         .output()
         .expect("failed to create dot image");
     let mut dotimagefile = File::create(&dotname.with_extension("png"))?;
-    dotimagefile.write(&dotimage.stdout)?;
+    dotimagefile.write_all(&dotimage.stdout)?;
 
     Ok(())
 }
@@ -145,18 +145,18 @@ pub fn cluster_sizes_from_graph(hk: &HegselmannKrause) -> Vec<usize> {
 
 fn write_cluster_sizes(clusters: &Vec<usize>, file: &mut File) -> std::io::Result<()> {
     let s = entropy(&clusters);
-    write!(file, "# entropy: {}\n", s)?;
+    writeln!(file, "# entropy: {}", s)?;
 
     let string_list = clusters.iter()
         .map(|c| c.to_string())
         .join(" ");
-    write!(file, "{}\n", string_list)?;
+    writeln!(file, "{}", string_list)?;
     Ok(())
 }
 
 fn write_entropy(clusters: &Vec<usize>, file: &mut File) -> std::io::Result<()> {
     let s = entropy(&clusters);
-    write!(file, "{}\n", s)?;
+    writeln!(file, "{}", s)?;
     Ok(())
 }
 
@@ -224,7 +224,7 @@ fn main() -> std::io::Result<()> {
 
 
                     if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
-                        write!(output, "# sweeps: {}\n", ctr)?;
+                        writeln!(output, "# sweeps: {}", ctr)?;
                         // mean_sweeps += ctr as f64 / args.samples as f64;
                         hk.fill_density();
                         break;
@@ -239,16 +239,9 @@ fn main() -> std::io::Result<()> {
             // println!("{}", mean_sweeps);
 
             drop(output);
-            Command::new("gzip")
-                .arg(format!("{}", clustername.to_str().unwrap()))
-                .output()
-                .expect("failed to zip output file: cluster");
-
+            zip(&clustername);
             drop(density);
-            Command::new("gzip")
-                .arg(format!("{}", densityname.to_str().unwrap()))
-                .output()
-                .expect("failed to zip output file: density");
+            zip(&densityname);
 
             Ok(())
         },
@@ -273,7 +266,7 @@ fn main() -> std::io::Result<()> {
                         hk.sweep();
                         // hk.sweep_synchronous();
                         if hk.acc_change < ACC_EPS {
-                            write!(output, "# sweeps: {}\n", ctr)?;
+                            writeln!(output, "# sweeps: {}", ctr)?;
                             // hk.write_equilibrium(&mut output)?;
                             hk.write_cluster_sizes(&mut output_cluster)?;
                             break;
@@ -282,11 +275,7 @@ fn main() -> std::io::Result<()> {
                     }
                 }
                 drop(output_cluster);
-                Command::new("gzip")
-                    // .arg(format!("{}", dataname.to_str().unwrap()))
-                    .arg(format!("{}", clustername.to_str().unwrap()))
-                    .output()
-                    .expect("failed to zip output file");
+                zip(&clustername);
             }
             // } else {
             //     unimplemented!();
@@ -356,11 +345,7 @@ fn main() -> std::io::Result<()> {
                 hk.write_cluster_sizes(&mut output_cluster)?;
             }
             drop(output_cluster);
-            Command::new("gzip")
-                // .arg(format!("{}", dataname.to_str().unwrap()))
-                .arg(format!("{}", clustername.to_str().unwrap()))
-                .output()
-                .expect("failed to zip output file");
+            zip(&clustername);
             hk.write_density(&mut density)?;
             Ok(())
         },
@@ -385,7 +370,7 @@ fn main() -> std::io::Result<()> {
             let mut output = File::create(&clustername)?;
             let mut nopoor = File::create(&nopoorname)?;
 
-            for n in 0..args.samples {
+            for _ in 0..args.samples {
                 hk.reset();
 
                 let mut ctr = 0;
@@ -400,7 +385,7 @@ fn main() -> std::io::Result<()> {
                     }
 
                     if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
-                        write!(output, "# sweeps: {}\n", ctr)?;
+                        writeln!(output, "# sweeps: {}", ctr)?;
                         hk.fill_density();
                         break;
                     }
@@ -460,7 +445,7 @@ fn main() -> std::io::Result<()> {
                 // let schedule = Linear::new(args.iterations as usize, 0.);
                 hk.reset();
                 let e = anneal(&mut hk, schedule, &mut rng);
-                write!(energy, "{}\n", e)?;
+                writeln!(energy, "{}", e)?;
 
                 if args.scc {
                     let clusters = cluster_sizes_from_graph(&hk);
@@ -477,10 +462,7 @@ fn main() -> std::io::Result<()> {
             hk.write_density(&mut density)?;
 
             drop(output);
-            Command::new("gzip")
-                .arg(format!("{}", clustername.to_str().unwrap()))
-                .output()
-                .expect("failed to zip output file");
+            zip(&clustername);
 
             Ok(())
         },
@@ -509,17 +491,14 @@ fn main() -> std::io::Result<()> {
                 // let schedule = Linear::new(args.iterations as usize, 0.);
                 hk.reset();
                 let e = local_anneal(&mut hk, schedule, &mut rng);
-                write!(energy, "{}\n", e)?;
+                writeln!(energy, "{}", e)?;
                 hk.write_cluster_sizes(&mut output)?;
             }
 
             hk.write_density(&mut density)?;
 
             drop(output);
-            Command::new("gzip")
-                .arg(format!("{}", clustername.to_str().unwrap()))
-                .output()
-                .expect("failed to zip output file");
+            zip(&clustername);
 
             Ok(())
         },
@@ -554,8 +533,8 @@ fn main() -> std::io::Result<()> {
                 for t in schedule {
                     hk.acc_change = 0.;
                     let e = anneal_sweep(&mut hk, &mut rng, t);
-                    write!(energy, "{}\n", e)?;
-                    write!(changes, "{}\n", hk.acc_change)?;
+                    writeln!(energy, "{}", e)?;
+                    writeln!(changes, "{}", hk.acc_change)?;
                     hk.add_state_to_density();
                     hk.time += 1;
                 }

@@ -1,3 +1,7 @@
+// we use float comparision to test if an entry did change during an iteration for performance
+// false positives do not lead to wrong results
+#![allow(clippy::float_cmp)]
+
 /// we want and annealing function, which takes a model
 /// i.e., a struct, which has the model trait with the
 /// functions
