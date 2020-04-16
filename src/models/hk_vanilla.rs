@@ -34,18 +34,18 @@ pub enum ResourceModel {
 #[derive(PartialEq, Clone)]
 pub enum PopulationModel {
     /// uniform opinions, uniform tolerances
-    Uniform,
+    Uniform(f32, f32),
     /// uniform opinions, bimodal tolerances
-    Bimodal,
+    Bimodal(f32, f32),
     /// A fraction of the agents with a different tolerace and a concentrated initial opinion
     /// initial opinion, opinion spread, fraction of agents, epsilon, epsilonspread
-    Bridgehead(f32, f32, f32, f32, f32),
+    Bridgehead(f32, f32, f32, f32, f32, f32, f32),
     /// uniform opinions, Gaussian tolerances
-    Gaussian,
+    Gaussian(f32, f32),
     /// uniform opinions, power law tolerances
-    PowerLaw,
+    PowerLaw(f32, f32),
     /// uniform opinions, power law with upper bound tolerances
-    PowerLawBound,
+    PowerLawBound(f32, f32, f32),
 }
 
 #[derive(Clone, Debug)]
@@ -76,8 +76,6 @@ impl PartialEq for HKAgent {
 
 pub struct HegselmannKrauseBuilder {
     num_agents: u32,
-    min_tolerance: f32,
-    max_tolerance: f32,
 
     cost_model: CostModel,
     resource_model: ResourceModel,
@@ -88,15 +86,13 @@ pub struct HegselmannKrauseBuilder {
 }
 
 impl HegselmannKrauseBuilder {
-    pub fn new(num_agents: u32, min_tolerance: f32, max_tolerance: f32) -> HegselmannKrauseBuilder {
+    pub fn new(num_agents: u32) -> HegselmannKrauseBuilder {
         HegselmannKrauseBuilder {
             num_agents,
-            min_tolerance,
-            max_tolerance,
 
             cost_model: CostModel::Free,
             resource_model: ResourceModel::Uniform(0., 0.5),
-            population_model: PopulationModel::Uniform,
+            population_model: PopulationModel::Uniform(0., 1.),
             eta: 0.,
 
             seed: 42,
@@ -141,8 +137,6 @@ impl HegselmannKrauseBuilder {
             num_agents: self.num_agents,
             agents,
             time: 0,
-            min_tolerance: self.min_tolerance,
-            max_tolerance: self.max_tolerance,
             cost_model: self.cost_model.clone(),
             resource_model: self.resource_model.clone(),
             population_model: self.population_model.clone(),
@@ -166,8 +160,6 @@ pub struct HegselmannKrause {
     pub num_agents: u32,
     pub agents: Vec<HKAgent>,
     pub time: usize,
-    min_tolerance: f32,
-    max_tolerance: f32,
 
     pub cost_model: CostModel,
     resource_model: ResourceModel,
@@ -208,7 +200,7 @@ impl HegselmannKrause {
 
     fn gen_init_opinion(&mut self) -> f32 {
         match self.population_model {
-            PopulationModel::Bridgehead(x_init, x_spread, frac, _eps_init, _eps_spread) => {
+            PopulationModel::Bridgehead(x_init, x_spread, frac, _eps_init, _eps_spread, _eps_min, _eps_max) => {
                 if self.rng.gen::<f32>() > frac {
                     self.rng.gen()
                 } else {
@@ -221,17 +213,17 @@ impl HegselmannKrause {
 
     fn gen_init_tolerance(&mut self) -> f32 {
         match self.population_model {
-            PopulationModel::Uniform => HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
-            PopulationModel::Bimodal => if self.rng.gen::<f32>() < 0.5 {self.min_tolerance} else {self.max_tolerance},
-            PopulationModel::Bridgehead(_x_init, _x_spread, frac, eps_init, eps_spread) => {
+            PopulationModel::Uniform(min, max) => HegselmannKrause::stretch(self.rng.gen(), min, max),
+            PopulationModel::Bimodal(first, second) => if self.rng.gen::<f32>() < 0.5 {first} else {second},
+            PopulationModel::Bridgehead(_x_init, _x_spread, frac, eps_init, eps_spread, eps_min, eps_max) => {
                 if self.rng.gen::<f32>() > frac {
-                    HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance)
+                    HegselmannKrause::stretch(self.rng.gen(), eps_min, eps_max)
                 } else {
                     HegselmannKrause::stretch(self.rng.gen(), eps_init-eps_spread, eps_init+eps_spread)
                 }
             },
-            PopulationModel::Gaussian => {
-                let gauss = Normal::new(self.min_tolerance, self.max_tolerance).unwrap();
+            PopulationModel::Gaussian(mean, sdev) => {
+                let gauss = Normal::new(mean, sdev).unwrap();
                 // draw gaussian RN until you get one in range
                 loop {
                     let x = gauss.sample(&mut self.rng);
@@ -240,16 +232,16 @@ impl HegselmannKrause {
                     }
                 }
             },
-            PopulationModel::PowerLaw => {
-                let pareto = Pareto::new(self.min_tolerance, self.max_tolerance - 1.).unwrap();
+            PopulationModel::PowerLaw(min, exponent) => {
+                let pareto = Pareto::new(min, exponent - 1.).unwrap();
                 pareto.sample(&mut self.rng)
             }
-            PopulationModel::PowerLawBound => {
+            PopulationModel::PowerLawBound(min, max, exponent) => {
                 // http://mathworld.wolfram.com/RandomNumber.html
                 fn powerlaw(y: f32, low: f32, high: f32, alpha: f32) -> f32 {
                     ((high.powf(alpha+1.) - low.powf(alpha+1.))*y + low.powf(alpha+1.)).powf(1./(alpha+1.))
                 }
-                powerlaw(self.rng.gen(), self.min_tolerance, self.max_tolerance, 2.5)
+                powerlaw(self.rng.gen(), min, max, exponent)
             }
         }
     }

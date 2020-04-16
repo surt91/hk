@@ -171,12 +171,12 @@ fn entropy (clustersizes: &Vec<usize>) -> f32 {
 fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
     let pop_model = match args.tolerance_distribution {
-        1 => PopulationModel::Uniform,
-        2 => PopulationModel::Bimodal,
-        3 => PopulationModel::Bridgehead(0.25, 0.05, 0.15, 0.075, 0.05),
-        4 => PopulationModel::Gaussian,
-        5 => PopulationModel::PowerLaw,
-        6 => PopulationModel::PowerLawBound,
+        1 => PopulationModel::Uniform(args.min_tolerance as f32, args.max_tolerance as f32),
+        2 => PopulationModel::Bimodal(args.min_tolerance as f32, args.max_tolerance as f32),
+        3 => PopulationModel::Bridgehead(0.25, 0.05, 0.15, 0.075, 0.05, args.min_tolerance as f32, args.max_tolerance as f32),
+        4 => PopulationModel::Gaussian(args.min_tolerance as f32, args.max_tolerance as f32),
+        5 => PopulationModel::PowerLaw(args.min_tolerance as f32, args.max_tolerance as f32),
+        6 => PopulationModel::PowerLawBound(args.min_tolerance as f32, args.max_tolerance as f32, 2.5),
         _ => unreachable!(),
     };
 
@@ -194,8 +194,6 @@ fn main() -> std::io::Result<()> {
         1 => {
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
             ).seed(args.seed)
             .population_model(pop_model)
             .resource_model(resource_model)
@@ -307,8 +305,6 @@ fn main() -> std::io::Result<()> {
         3 => {
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Rebounce)
@@ -371,8 +367,6 @@ fn main() -> std::io::Result<()> {
         5 => {
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Change)
@@ -447,8 +441,6 @@ fn main() -> std::io::Result<()> {
 
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Annealing)
@@ -500,8 +492,6 @@ fn main() -> std::io::Result<()> {
 
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Annealing)
@@ -542,8 +532,6 @@ fn main() -> std::io::Result<()> {
 
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
-                args.min_tolerance as f32,
-                args.max_tolerance as f32,
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Annealing)
