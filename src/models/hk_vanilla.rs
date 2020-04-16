@@ -103,27 +103,27 @@ impl HegselmannKrauseBuilder {
         }
     }
 
-    pub fn cost_model<'a>(&'a mut self, cost_model: CostModel) -> &'a mut HegselmannKrauseBuilder {
+    pub fn cost_model(&mut self, cost_model: CostModel) -> &mut HegselmannKrauseBuilder {
         self.cost_model = cost_model;
         self
     }
 
-    pub fn resource_model<'a>(&'a mut self, resource_model: ResourceModel) -> &'a mut HegselmannKrauseBuilder {
+    pub fn resource_model(&mut self, resource_model: ResourceModel) -> &mut HegselmannKrauseBuilder {
         self.resource_model = resource_model;
         self
     }
 
-    pub fn population_model<'a>(&'a mut self, population_model: PopulationModel) -> &'a mut HegselmannKrauseBuilder {
+    pub fn population_model(&mut self, population_model: PopulationModel) -> &mut HegselmannKrauseBuilder {
         self.population_model = population_model;
         self
     }
 
-    pub fn eta<'a>(&'a mut self, eta: f32) -> &'a mut HegselmannKrauseBuilder {
+    pub fn eta(&mut self, eta: f32) -> &mut HegselmannKrauseBuilder {
         self.eta = eta;
         self
     }
 
-    pub fn seed<'a>(&'a mut self, seed: u64) -> &'a mut HegselmannKrauseBuilder {
+    pub fn seed(&mut self, seed: u64) -> &mut HegselmannKrauseBuilder {
         self.seed = seed;
         self
     }
