@@ -18,7 +18,7 @@ const DENSITYBINS: usize = 100;
 
 #[derive(PartialEq, Clone)]
 pub enum CostModel {
-    Rebounce(f32),
+    Rebounce,
     Change(f32),
     Free,
     Annealing(f32),
@@ -289,7 +289,7 @@ impl HegselmannKrause {
         let mut new_resources = i.resources;
         match self.cost_model {
             CostModel::Free => {},
-            CostModel::Rebounce(eta) => {
+            CostModel::Rebounce => {
                 new_resources -= (i.initial_opinion - new_opinion).abs();
                 if new_resources < 0. {
                     if i.initial_opinion > new_opinion {
@@ -311,7 +311,7 @@ impl HegselmannKrause {
                     new_resources = 0.;
                 }
             }
-            CostModel::Annealing(eta) => {
+            CostModel::Annealing(_eta) => {
                 panic!("CostModel::Annealing may not be used with the deterministic dynamics!")
             }
         }

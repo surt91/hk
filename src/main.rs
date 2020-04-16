@@ -307,7 +307,7 @@ fn main() -> std::io::Result<()> {
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
-            .cost_model(CostModel::Rebounce(args.eta as f32))
+            .cost_model(CostModel::Rebounce)
             .resource_model(resource_model)
             .population_model(pop_model)
             .build();
