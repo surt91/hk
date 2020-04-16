@@ -25,6 +25,13 @@ pub enum CostModel {
 }
 
 #[derive(PartialEq, Clone)]
+pub enum ResourceModel {
+    Uniform(f32, f32),
+    Pareto(f32, f32),
+    Proportional(f32),
+}
+
+#[derive(PartialEq, Clone)]
 pub enum PopulationModel {
     /// uniform opinions, uniform tolerances
     Uniform,
@@ -66,33 +73,6 @@ impl PartialEq for HKAgent {
             && (self.tolerance - other.tolerance).abs() < EPS
     }
 }
-//
-// trait Agent {
-//
-// }
-//
-// trait UpdateSync {
-//
-// }
-//
-// trait UpdateSeq {
-//
-// }
-//
-// trait Model: UpdateSync + UpdateSeq {
-//     fn sweep_seq(&mut self);
-//     fn sweep_sync(&mut self);
-//
-//     fn new() -> Self;
-//     fn reset(&mut self);
-//
-//     fn agents() -> impl Iterator<Item = HKAgent>;
-//
-//     fn list_clusters(&self);
-//     fn cluster_sizes(&self);
-//     fn density(&self);
-// }
-
 
 pub struct HegselmannKrauseBuilder {
     num_agents: u32,
@@ -100,10 +80,9 @@ pub struct HegselmannKrauseBuilder {
     max_tolerance: f32,
 
     cost_model: CostModel,
+    resource_model: ResourceModel,
     population_model: PopulationModel,
     eta: f32,
-    min_resources: f32,
-    max_resources: f32,
 
     seed: u64,
 }
@@ -116,10 +95,9 @@ impl HegselmannKrauseBuilder {
             max_tolerance,
 
             cost_model: CostModel::Free,
+            resource_model: ResourceModel::Uniform(0., 0.5),
             population_model: PopulationModel::Uniform,
             eta: 0.,
-            min_resources: 0.,
-            max_resources: 0.,
 
             seed: 42,
         }
@@ -127,6 +105,11 @@ impl HegselmannKrauseBuilder {
 
     pub fn cost_model<'a>(&'a mut self, cost_model: CostModel) -> &'a mut HegselmannKrauseBuilder {
         self.cost_model = cost_model;
+        self
+    }
+
+    pub fn resource_model<'a>(&'a mut self, resource_model: ResourceModel) -> &'a mut HegselmannKrauseBuilder {
+        self.resource_model = resource_model;
         self
     }
 
@@ -140,30 +123,42 @@ impl HegselmannKrauseBuilder {
         self
     }
 
-    pub fn resources<'a>(&'a mut self, min_resources: f32, max_resources: f32) -> &'a mut HegselmannKrauseBuilder {
-        self.min_resources = min_resources;
-        self.max_resources = max_resources;
-        self
-    }
-
     pub fn seed<'a>(&'a mut self, seed: u64) -> &'a mut HegselmannKrauseBuilder {
         self.seed = seed;
         self
     }
 
     pub fn build(&self) -> HegselmannKrause {
-        HegselmannKrause::new(
-            self.num_agents,
-            self.min_tolerance,
-            self.max_tolerance,
-            self.eta,
-            self.cost_model.clone(),
-            self.population_model.clone(),
-            self.min_resources,
-            self.max_resources,
-            self.seed,
-        )
+        let rng = Pcg64::seed_from_u64(self.seed);
+        let agents: Vec<HKAgent> = Vec::new();
 
+        // datastructure for `step_bisect`
+        let opinion_set = BTreeMap::new();
+
+        let dynamic_density = Vec::new();
+
+        let mut hk = HegselmannKrause {
+            num_agents: self.num_agents,
+            agents,
+            time: 0,
+            min_tolerance: self.min_tolerance,
+            max_tolerance: self.max_tolerance,
+            cost_model: self.cost_model.clone(),
+            resource_model: self.resource_model.clone(),
+            population_model: self.population_model.clone(),
+            eta: self.eta,
+            opinion_set,
+            acc_change: 0.,
+            dynamic_density,
+            ji: Vec::new(),
+            jin: Vec::new(),
+            density_slice: vec![0; DENSITYBINS+1],
+            entropies_acc: Vec::new(),
+            rng,
+        };
+
+        hk.reset();
+        hk
     }
 }
 
@@ -175,10 +170,9 @@ pub struct HegselmannKrause {
     max_tolerance: f32,
 
     pub cost_model: CostModel,
+    resource_model: ResourceModel,
     population_model: PopulationModel,
     pub eta: f32,
-    min_resources: f32,
-    max_resources: f32,
 
     pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
@@ -207,119 +201,83 @@ impl fmt::Debug for HegselmannKrause {
 }
 
 impl HegselmannKrause {
-    pub fn new(
-        n: u32,
-        min_tolerance: f32,
-        max_tolerance: f32,
-        eta: f32,
-        cost_model:
-        CostModel,
-        population_model: PopulationModel,
-        min_resources: f32,
-        max_resources: f32,
-        seed: u64
-    ) -> HegselmannKrause {
-        let rng = Pcg64::seed_from_u64(seed);
-        let agents: Vec<HKAgent> = Vec::new();
-
-        // datastructure for `step_bisect`
-        let opinion_set = BTreeMap::new();
-
-        let dynamic_density = Vec::new();
-
-        let mut hk = HegselmannKrause {
-            num_agents: n,
-            agents,
-            time: 0,
-            min_tolerance,
-            max_tolerance,
-            cost_model,
-            population_model,
-            eta,
-            min_resources,
-            max_resources,
-            opinion_set,
-            acc_change: 0.,
-            dynamic_density,
-            ji: Vec::new(),
-            jin: Vec::new(),
-            density_slice: vec![0; DENSITYBINS+1],
-            entropies_acc: Vec::new(),
-            rng,
-        };
-
-        hk.reset();
-        hk
-    }
 
     fn stretch(x: f32, low: f32, high: f32) -> f32 {
         x*(high-low)+low
     }
 
-    pub fn reset(&mut self) {
-        self.agents = match self.population_model {
-            PopulationModel::Uniform => (0..self.num_agents).map(|_| HKAgent::new(
-                                            self.rng.gen(),
-                                            HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
-                                            HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-                                        )).collect(),
-            PopulationModel::Bimodal => (0..self.num_agents).map(|_| HKAgent::new(
-                                            self.rng.gen(),
-                                            if self.rng.gen::<f32>() < 0.5 {self.min_tolerance} else {self.max_tolerance},
-                                            HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-                                        )).collect(),
-            PopulationModel::Bridgehead(x_init, x_spread, frac, eps_init, eps_spread) => (0..self.num_agents).map(|n| {
-                if n as f32 > frac * self.num_agents as f32 {
-                    HKAgent::new(
-                        self.rng.gen(),
-                        HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
-                        HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-                    )
+    fn gen_init_opinion(&mut self) -> f32 {
+        match self.population_model {
+            PopulationModel::Bridgehead(x_init, x_spread, frac, _eps_init, _eps_spread) => {
+                if self.rng.gen::<f32>() > frac {
+                    self.rng.gen()
                 } else {
-                    HKAgent::new(
-                        HegselmannKrause::stretch(self.rng.gen(), x_init-x_spread, x_init+x_spread),
-                        HegselmannKrause::stretch(self.rng.gen(), eps_init-eps_spread, eps_init+eps_spread),
-                        HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-                    )
+                    HegselmannKrause::stretch(self.rng.gen(), x_init-x_spread, x_init+x_spread)
                 }
-            }).collect(),
+            },
+            _ => self.rng.gen(),
+        }
+    }
+
+    fn gen_init_tolerance(&mut self) -> f32 {
+        match self.population_model {
+            PopulationModel::Uniform => HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance),
+            PopulationModel::Bimodal => if self.rng.gen::<f32>() < 0.5 {self.min_tolerance} else {self.max_tolerance},
+            PopulationModel::Bridgehead(_x_init, _x_spread, frac, eps_init, eps_spread) => {
+                if self.rng.gen::<f32>() > frac {
+                    HegselmannKrause::stretch(self.rng.gen(), self.min_tolerance, self.max_tolerance)
+                } else {
+                    HegselmannKrause::stretch(self.rng.gen(), eps_init-eps_spread, eps_init+eps_spread)
+                }
+            },
             PopulationModel::Gaussian => {
                 let gauss = Normal::new(self.min_tolerance, self.max_tolerance).unwrap();
-                (0..self.num_agents).map(|_| HKAgent::new(
-                    self.rng.gen(),
-                    {
-                        // draw gaussian RN until you get one in range
-                        loop {
-                            let x = gauss.sample(&mut self.rng);
-                            if x <= 1. && x >= 0. {
-                                break x
-                            }
-                        }
-                    },
-                    HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-                )).collect()
+                // draw gaussian RN until you get one in range
+                loop {
+                    let x = gauss.sample(&mut self.rng);
+                    if x <= 1. && x >= 0. {
+                        break x
+                    }
+                }
             },
             PopulationModel::PowerLaw => {
-                // takes scale and shape parameter, the shape parameter is different by 1 from the exponent
                 let pareto = Pareto::new(self.min_tolerance, self.max_tolerance - 1.).unwrap();
-                (0..self.num_agents).map(|_| HKAgent::new(
-                    self.rng.gen(),
-                    pareto.sample(&mut self.rng),
-                    HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-                )).collect()
-            },
+                pareto.sample(&mut self.rng)
+            }
             PopulationModel::PowerLawBound => {
                 // http://mathworld.wolfram.com/RandomNumber.html
                 fn powerlaw(y: f32, low: f32, high: f32, alpha: f32) -> f32 {
                     ((high.powf(alpha+1.) - low.powf(alpha+1.))*y + low.powf(alpha+1.)).powf(1./(alpha+1.))
                 }
-                (0..self.num_agents).map(|_| HKAgent::new(
-                    self.rng.gen(),
-                    powerlaw(self.rng.gen(), self.min_tolerance, self.max_tolerance, 2.5),
-                    HegselmannKrause::stretch(self.rng.gen(), self.min_resources, self.max_resources),
-                )).collect()
+                powerlaw(self.rng.gen(), self.min_tolerance, self.max_tolerance, 2.5)
+            }
+        }
+    }
+
+    fn gen_init_resources(&mut self, init_opinion: f32) -> f32 {
+        match self.resource_model {
+            ResourceModel::Uniform(l, u) => HegselmannKrause::stretch(self.rng.gen(), l, u),
+            ResourceModel::Pareto(x0, a) => {
+                let pareto = Pareto::new(x0, a - 1.).unwrap();
+                pareto.sample(&mut self.rng)
             },
-        };
+            ResourceModel::Proportional(a) => {
+                init_opinion * a
+            }
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.agents = (0..self.num_agents).map(|_| {
+            let xi = self.gen_init_opinion();
+            let ei = self.gen_init_tolerance();
+            let ci = self.gen_init_resources(ei);
+            HKAgent::new(
+                xi,
+                ei,
+                ci,
+            )
+        }).collect();
 
         self.opinion_set.clear();
         for i in self.agents.iter() {

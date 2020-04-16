@@ -7,7 +7,7 @@ mod simulated_annealing;
 mod local_simulated_annealing;
 
 pub use hk_vanilla::{HegselmannKrause, HegselmannKrauseBuilder};
-pub use hk_vanilla::{CostModel, PopulationModel};
+pub use hk_vanilla::{CostModel, ResourceModel, PopulationModel};
 
 pub use hk_lorenz::HegselmannKrauseLorenz;
 pub use hk_lorenz_singleupdate::HegselmannKrauseLorenzSingle;

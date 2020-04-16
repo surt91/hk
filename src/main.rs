@@ -10,7 +10,7 @@ use itertools::Itertools;
 use hk::{HegselmannKrauseBuilder,HegselmannKrause};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, PopulationModel};
+use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel};
 use hk::models::graph;
 
 const ACC_EPS: f32 = 1e-3;
@@ -43,6 +43,13 @@ struct Opt {
     #[structopt(short = "u", long, default_value = "1.0")]
     /// maximum tolerance of agents (uniformly distributed)
     max_tolerance: f64,
+
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3"])]
+    /// distribution of the resources c_i
+    /// 1 => uniform between min and max
+    /// 2 => pareto with exponent -2.5
+    /// 3 => proportional to the tolerances but with same average total resources
+    resource_distribution: u32,
 
     #[structopt(long, default_value = "0")]
     /// minimal resources for HKCost
@@ -173,6 +180,16 @@ fn main() -> std::io::Result<()> {
         _ => unreachable!(),
     };
 
+    let resource_model = match args.resource_distribution {
+        1 => ResourceModel::Uniform(args.min_resources as f32, args.max_resources as f32),
+        2 => ResourceModel::Pareto(args.min_resources as f32, args.max_resources as f32),
+        3 => {
+            let prop = (args.min_resources + args.max_resources) / (args.min_tolerance + args.max_tolerance);
+            ResourceModel::Proportional(prop as f32)
+        },
+        _ => unreachable!(),
+    };
+
     match args.model {
         1 => {
             let mut hk = HegselmannKrauseBuilder::new(
@@ -181,6 +198,7 @@ fn main() -> std::io::Result<()> {
                 args.max_tolerance as f32,
             ).seed(args.seed)
             .population_model(pop_model)
+            .resource_model(resource_model)
             .build();
 
             // let outname = args.outname.with_extension("dat");
@@ -294,8 +312,8 @@ fn main() -> std::io::Result<()> {
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Rebounce)
+            .resource_model(resource_model)
             .population_model(pop_model)
-            .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
             // let outname = args.outname.with_extension("dat");
@@ -358,8 +376,8 @@ fn main() -> std::io::Result<()> {
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Change)
+            .resource_model(resource_model)
             .population_model(pop_model)
-            .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
             // let outname = args.outname.with_extension("dat");
@@ -434,8 +452,8 @@ fn main() -> std::io::Result<()> {
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Annealing)
+            .resource_model(resource_model)
             .population_model(pop_model)
-            .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
@@ -487,8 +505,8 @@ fn main() -> std::io::Result<()> {
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Annealing)
+            .resource_model(resource_model)
             .population_model(pop_model)
-            .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
@@ -529,8 +547,8 @@ fn main() -> std::io::Result<()> {
             ).seed(args.seed)
             .eta(args.eta as f32)
             .cost_model(CostModel::Annealing)
+            .resource_model(resource_model)
             .population_model(pop_model)
-            .resources(args.min_resources as f32, args.max_resources as f32)
             .build();
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
