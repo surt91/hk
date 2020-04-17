@@ -274,7 +274,7 @@ fn main() -> std::io::Result<()> {
             ResourceModel::Proportional(prop as f32)
         },
         4 => {
-            let prop = (args.min_resources + args.max_resources) * (args.min_tolerance + args.max_tolerance);
+            let prop = (args.min_resources + args.max_resources) * (args.min_tolerance + args.max_tolerance) / 4.;
             ResourceModel::Antiproportional(prop as f32)
         },
         _ => unreachable!(),
