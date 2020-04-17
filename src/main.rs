@@ -216,7 +216,8 @@ impl Output {
         Output::zip(&tmp_path);
         let mut gz_ext = tmp_path.extension().unwrap().to_os_string();
         gz_ext.push(".gz");
-        let tmp_path = tmp_path.with_extension(gz_ext);
+        let tmp_path = tmp_path.with_extension(&gz_ext);
+        let final_path = final_path.with_extension(&gz_ext);
 
         // move finished file to final location, (if they differ)
         if let Some(dirs) = final_path.parent() {
