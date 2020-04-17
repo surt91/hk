@@ -14,6 +14,9 @@ use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel};
 use hk::models::graph;
 
+use git_version::git_version;
+const GIT_VERSION: &str = git_version!();
+
 const ACC_EPS: f32 = 1e-3;
 
 /// Simulate a (modified) Hegselmann Krause model
@@ -226,6 +229,11 @@ impl Output {
 
 fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
+
+    // let raw_args: Vec<String> = std::env::args().collect();
+    let info_args = format!("# {}", std::env::args().join(" "));
+    let info_version = format!("# {}", GIT_VERSION);
+
     let pop_model = match args.tolerance_distribution {
         1 => PopulationModel::Uniform(args.min_tolerance as f32, args.max_tolerance as f32),
         2 => PopulationModel::Bimodal(args.min_tolerance as f32, args.max_tolerance as f32),
@@ -275,6 +283,9 @@ fn main() -> std::io::Result<()> {
             let mut out_scc = Output::new(&args.outname, "scc.dat", &args.tmp)?;
             let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
             let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
+            let mut out_info = Output::new(&args.outname, "info.dat", &args.tmp)?;
+
+            write!(out_info.file(), "{}\n{}\n", info_version, info_args)?;
 
             for _ in 0..args.samples {
                 hk.reset();
@@ -316,6 +327,7 @@ fn main() -> std::io::Result<()> {
             out_scc.finalize()?;
             out_density.finalize()?;
             out_entropy.finalize()?;
+            out_info.finalize()?;
 
             Ok(())
         },
