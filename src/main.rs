@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::PathBuf;
 
 use std::process::Command;
 
@@ -103,16 +104,13 @@ struct Opt {
     /// 8 -> HK annealing with constant temperature{n}
     model: u32,
 
+    #[structopt(long, default_value = ".", parse(from_os_str))]
+    /// directory to store temporary files
+    tmp: PathBuf,
+
     #[structopt(short, long, default_value = "out", parse(from_os_str))]
     /// name of the output data file
-    outname: std::path::PathBuf,
-}
-
-fn zip(name: &std::path::PathBuf) {
-    Command::new("gzip")
-        .arg(name.to_str().unwrap())
-        .output()
-        .expect("failed to zip output file");
+    outname: PathBuf,
 }
 
 // TODO: I should introduce the trait `model` and make everything below more generic
@@ -168,6 +166,64 @@ fn entropy (clustersizes: &[usize]) -> f32 {
     }).sum()
 }
 
+struct Output {
+    tmp_file: File,
+    tmp_path: PathBuf,
+    final_path: PathBuf,
+}
+
+impl Output {
+    fn new(outname: &PathBuf, extension: &str, tmp_path: &PathBuf) -> std::io::Result<Output> {
+        let final_path = outname.with_extension(extension);
+        let tmp_path = tmp_path.join(
+                outname.file_name().expect("no filename specified")
+            ).with_extension(extension);
+
+        let tmp_file = File::create(&tmp_path)?;
+
+        Ok(Output {
+            tmp_file,
+            tmp_path,
+            final_path,
+        })
+    }
+
+    fn file(&mut self) -> &mut File {
+        &mut self.tmp_file
+    }
+
+    fn zip(name: &std::path::PathBuf) {
+        Command::new("gzip")
+            .arg(name.to_str().unwrap())
+            .output()
+            .expect("failed to zip output file");
+    }
+
+    fn finalize(self) -> std::io::Result<()> {
+        let tmp_path = self.tmp_path;
+        let final_path = self.final_path;
+        // flush and close temporary file
+        self.tmp_file.sync_all()?;
+        drop(self.tmp_file);
+
+        // zip temporary file
+        Output::zip(&tmp_path);
+        let mut gz_ext = tmp_path.extension().unwrap().to_os_string();
+        gz_ext.push(".gz");
+        let tmp_path = tmp_path.with_extension(gz_ext);
+
+        // move finished file to final location, (if they differ)
+        if tmp_path != final_path {
+            std::fs::rename(&tmp_path, &final_path).or_else(|_| {
+                std::fs::copy(&tmp_path, &final_path).expect("could not move or copy the file");
+                std::fs::remove_file(&tmp_path)
+            })?;
+        }
+
+        Ok(())
+    }
+}
+
 fn main() -> std::io::Result<()> {
     let args = Opt::from_args();
     let pop_model = match args.tolerance_distribution {
@@ -214,17 +270,11 @@ fn main() -> std::io::Result<()> {
             .population_model(pop_model)
             .build();
 
-            // let outname = args.outname.with_extension("dat");
-            let clustername = args.outname.with_extension("cluster.dat");
-            let nopoorname = args.outname.with_extension("nopoor.dat");
-            let sccname = args.outname.with_extension("scc.dat");
-            let densityname = args.outname.with_extension("density.dat");
-            let entropyname = args.outname.with_extension("entropy.dat");
-            let mut density = File::create(&densityname)?;
-            let mut entropy = File::create(&entropyname)?;
-            let mut output_graph = File::create(&sccname)?;
-            let mut output = File::create(&clustername)?;
-            let mut nopoor = File::create(&nopoorname)?;
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_nopoor = Output::new(&args.outname, "nopoor.dat", &args.tmp)?;
+            let mut out_scc = Output::new(&args.outname, "scc.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
+            let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
 
             for _ in 0..args.samples {
                 hk.reset();
@@ -241,48 +291,40 @@ fn main() -> std::io::Result<()> {
                     }
 
                     if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
-                        writeln!(output, "# sweeps: {}", ctr)?;
+                        writeln!(out_cluster.file(), "# sweeps: {}", ctr)?;
                         hk.fill_density();
                         break;
                     }
                     hk.acc_change = 0.;
                 }
-                hk.write_cluster_sizes(&mut output)?;
-                hk.write_cluster_sizes_nopoor(&mut nopoor)?;
+                hk.write_cluster_sizes(&mut out_cluster.file())?;
+                hk.write_cluster_sizes_nopoor(&mut out_nopoor.file())?;
 
                 if args.scc {
                     let clusters = cluster_sizes_from_graph(&hk);
-                    write_cluster_sizes(&clusters, &mut output_graph)?;
+                    write_cluster_sizes(&clusters, &mut out_scc.file())?;
                 }
 
                 // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
             }
 
-            hk.write_density(&mut density)?;
-            hk.write_entropy(&mut entropy)?;
+            hk.write_density(&mut out_density.file())?;
+            hk.write_entropy(&mut out_entropy.file())?;
 
-            drop(output);
-            drop(output_graph);
-            drop(density);
-            drop(entropy);
-            drop(nopoor);
-            zip(&clustername);
-            zip(&sccname);
-            zip(&densityname);
-            zip(&entropyname);
-            zip(&nopoorname);
+            out_cluster.finalize()?;
+            out_nopoor.finalize()?;
+            out_scc.finalize()?;
+            out_density.finalize()?;
+            out_entropy.finalize()?;
 
             Ok(())
         },
         2 => {
             let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
 
-            let dataname = args.outname.with_extension("dat");
-            let clustername = args.outname.with_extension("cluster.dat");
-
-            let mut output = File::create(&dataname)?;
-            let mut output_cluster = File::create(&clustername)?;
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
+            let mut out_data = Output::new(&args.outname, "dat", &args.tmp)?;
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
 
             // simulate until converged
             if args.iterations == 0 {
@@ -295,16 +337,15 @@ fn main() -> std::io::Result<()> {
                         hk.sweep();
                         // hk.sweep_synchronous();
                         if hk.acc_change < ACC_EPS {
-                            writeln!(output, "# sweeps: {}", ctr)?;
+                            writeln!(out_data.file(), "# sweeps: {}", ctr)?;
                             // hk.write_equilibrium(&mut output)?;
-                            hk.write_cluster_sizes(&mut output_cluster)?;
+                            hk.write_cluster_sizes(&mut out_cluster.file())?;
                             break;
                         }
                         hk.acc_change = 0.;
                     }
                 }
-                drop(output_cluster);
-                zip(&clustername);
+
             }
             // } else {
             //     unimplemented!();
@@ -318,18 +359,19 @@ fn main() -> std::io::Result<()> {
             //     }
             //     hk.write_cluster_sizes(&mut output_cluster)?;
             // }
-            hk.write_density(&mut density)?;
+            hk.write_density(&mut out_density.file())?;
+
+            out_data.finalize()?;
+            out_cluster.finalize()?;
+            out_density.finalize()?;
+
             Ok(())
         },
         4 => {
             let mut hk = HegselmannKrauseLorenzSingle::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
 
-            // let dataname = args.outname.with_extension("dat");
-            let clustername = args.outname.with_extension("cluster.dat");
-
-            // let mut output = File::create(&dataname)?;
-            let mut output_cluster = File::create(&clustername)?;
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
 
             for _ in 0..args.samples {
                 hk.reset();
@@ -347,11 +389,13 @@ fn main() -> std::io::Result<()> {
                     // }
                     hk.acc_change = 0.;
                 }
-                hk.write_cluster_sizes(&mut output_cluster)?;
+                hk.write_cluster_sizes(&mut out_cluster.file())?;
             }
-            drop(output_cluster);
-            zip(&clustername);
-            hk.write_density(&mut density)?;
+            hk.write_density(&mut out_density.file())?;
+
+            out_cluster.finalize()?;
+            out_density.finalize()?;
+
             Ok(())
         },
         6 => {
@@ -368,11 +412,10 @@ fn main() -> std::io::Result<()> {
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
-            let clustername = args.outname.with_extension("cluster.dat");
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
-            let mut energy = File::create(args.outname.with_extension("energy.dat"))?;
-            let mut entropy = File::create(args.outname.with_extension("entropy.dat"))?;
-            let mut output = File::create(&clustername)?;
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_energy = Output::new(&args.outname, "energy.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
+            let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
 
             for _n in 0..args.samples {
                 let schedule = Exponential::new(args.iterations as usize, 3., 0.98);
@@ -380,24 +423,26 @@ fn main() -> std::io::Result<()> {
                 // let schedule = Linear::new(args.iterations as usize, 0.);
                 hk.reset();
                 let e = anneal(&mut hk, schedule, &mut rng);
-                writeln!(energy, "{}", e)?;
+                writeln!(out_energy.file(), "{}", e)?;
 
                 if args.scc {
                     let clusters = cluster_sizes_from_graph(&hk);
-                    write_cluster_sizes(&clusters, &mut output)?;
-                    write_entropy(&clusters, &mut entropy)?;
+                    write_cluster_sizes(&clusters, &mut out_cluster.file())?;
+                    write_entropy(&clusters, &mut out_entropy.file())?;
                 } else {
-                    hk.write_cluster_sizes(&mut output)?;
+                    hk.write_cluster_sizes(&mut out_cluster.file())?;
                 }
 
                 // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
                 // println!("{}", hk.agents.iter().filter(|x| x.resources > 0.).count())
             }
 
-            hk.write_density(&mut density)?;
+            hk.write_density(&mut out_density.file())?;
 
-            drop(output);
-            zip(&clustername);
+            out_cluster.finalize()?;
+            out_energy.finalize()?;
+            out_density.finalize()?;
+            out_entropy.finalize()?;
 
             Ok(())
         },
@@ -415,10 +460,9 @@ fn main() -> std::io::Result<()> {
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
-            let clustername = args.outname.with_extension("cluster.dat");
-            let mut energy = File::create(args.outname.with_extension("energy.dat"))?;
-            let mut density = File::create(args.outname.with_extension("density.dat"))?;
-            let mut output = File::create(&clustername)?;
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_energy = Output::new(&args.outname, "energy.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
 
             for _ in 0..args.samples {
                 let schedule = Exponential::new(args.iterations as usize, 3., 0.98);
@@ -426,14 +470,15 @@ fn main() -> std::io::Result<()> {
                 // let schedule = Linear::new(args.iterations as usize, 0.);
                 hk.reset();
                 let e = local_anneal(&mut hk, schedule, &mut rng);
-                writeln!(energy, "{}", e)?;
-                hk.write_cluster_sizes(&mut output)?;
+                writeln!(out_energy.file(), "{}", e)?;
+                hk.write_cluster_sizes(&mut out_cluster.file())?;
             }
 
-            hk.write_density(&mut density)?;
+            hk.write_density(&mut out_density.file())?;
 
-            drop(output);
-            zip(&clustername);
+            out_cluster.finalize()?;
+            out_energy.finalize()?;
+            out_density.finalize()?;
 
             Ok(())
         },
@@ -451,16 +496,11 @@ fn main() -> std::io::Result<()> {
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
-            let clustername = args.outname.with_extension("cluster.dat");
-            let densityname = args.outname.with_extension("density.dat");
-            let energyname = args.outname.with_extension("energy.dat");
-            let entropyname = args.outname.with_extension("entropy.dat");
-            let changesname = args.outname.with_extension("changes.dat");
-            let mut output = File::create(&clustername)?;
-            let mut density = File::create(&densityname)?;
-            let mut energy = File::create(&energyname)?;
-            let mut entropy = File::create(&entropyname)?;
-            let mut changes = File::create(&changesname)?;
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_energy = Output::new(&args.outname, "energy.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
+            let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
+            let mut out_changes = Output::new(&args.outname, "changes.dat", &args.tmp)?;
 
             for _n in 0..args.samples {
                 let schedule = Constant::new(args.temperature as f32, args.iterations as usize);
@@ -468,31 +508,25 @@ fn main() -> std::io::Result<()> {
                 for t in schedule {
                     hk.acc_change = 0.;
                     let e = anneal_sweep(&mut hk, &mut rng, t);
-                    writeln!(energy, "{}", e)?;
-                    writeln!(changes, "{}", hk.acc_change)?;
+                    writeln!(out_energy.file(), "{}", e)?;
+                    writeln!(out_changes.file(), "{}", hk.acc_change)?;
                     hk.add_state_to_density();
                     hk.time += 1;
                 }
 
                 // hk.write_cluster_sizes(&mut output)?;
                 let clusters = cluster_sizes_from_graph(&hk);
-                write_cluster_sizes(&clusters, &mut output)?;
-                write_entropy(&clusters, &mut entropy)?;
+                write_cluster_sizes(&clusters, &mut out_cluster.file())?;
+                write_entropy(&clusters, &mut out_entropy.file())?;
             }
 
-            hk.write_density(&mut density)?;
+            hk.write_density(&mut out_density.file())?;
 
-            drop(output);
-            drop(density);
-            drop(energy);
-            drop(entropy);
-            drop(changes);
-
-            zip(&clustername);
-            zip(&densityname);
-            zip(&energyname);
-            zip(&entropyname);
-            zip(&changesname);
+            out_cluster.finalize()?;
+            out_energy.finalize()?;
+            out_density.finalize()?;
+            out_entropy.finalize()?;
+            out_changes.finalize()?;
 
             Ok(())
         },
