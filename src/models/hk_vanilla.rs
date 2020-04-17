@@ -33,6 +33,7 @@ pub enum ResourceModel {
     Uniform(f32, f32),
     Pareto(f32, f32),
     Proportional(f32),
+    Antiproportional(f32),
 }
 
 #[derive(PartialEq, Clone)]
@@ -248,9 +249,8 @@ impl HegselmannKrause {
                 let pareto = Pareto::new(x0, a - 1.).unwrap();
                 pareto.sample(&mut self.rng)
             },
-            ResourceModel::Proportional(a) => {
-                init_opinion * a
-            }
+            ResourceModel::Proportional(a) => init_opinion * a,
+            ResourceModel::Antiproportional(a) => a / init_opinion,
         }
     }
 

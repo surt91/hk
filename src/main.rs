@@ -48,11 +48,12 @@ struct Opt {
     /// maximum tolerance of agents (uniformly distributed)
     max_tolerance: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4"])]
     /// distribution of the resources c_i:{n}
     /// 1 => uniform between min and max{n}
     /// 2 => pareto with exponent -2.5{n}
     /// 3 => proportional to the tolerances but with same average total resources{n}
+    /// 4 => antiproportional to the tolerances but with same average total resources{n}
     resource_distribution: u32,
 
     #[structopt(long, default_value = "0")]
@@ -271,6 +272,10 @@ fn main() -> std::io::Result<()> {
         3 => {
             let prop = (args.min_resources + args.max_resources) / (args.min_tolerance + args.max_tolerance);
             ResourceModel::Proportional(prop as f32)
+        },
+        4 => {
+            let prop = (args.min_resources + args.max_resources) * (args.min_tolerance + args.max_tolerance);
+            ResourceModel::Antiproportional(prop as f32)
         },
         _ => unreachable!(),
     };
