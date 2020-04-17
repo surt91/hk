@@ -143,7 +143,7 @@ pub fn cluster_sizes_from_graph(hk: &HegselmannKrause) -> Vec<usize> {
     graph::clustersizes(&g)
 }
 
-fn write_cluster_sizes(clusters: &Vec<usize>, file: &mut File) -> std::io::Result<()> {
+fn write_cluster_sizes(clusters: &[usize], file: &mut File) -> std::io::Result<()> {
     let s = entropy(&clusters);
     writeln!(file, "# entropy: {}", s)?;
 
@@ -154,13 +154,13 @@ fn write_cluster_sizes(clusters: &Vec<usize>, file: &mut File) -> std::io::Resul
     Ok(())
 }
 
-fn write_entropy(clusters: &Vec<usize>, file: &mut File) -> std::io::Result<()> {
+fn write_entropy(clusters: &[usize], file: &mut File) -> std::io::Result<()> {
     let s = entropy(&clusters);
     writeln!(file, "{}", s)?;
     Ok(())
 }
 
-fn entropy (clustersizes: &Vec<usize>) -> f32 {
+fn entropy (clustersizes: &[usize]) -> f32 {
     let f = 1. / clustersizes.iter().sum::<usize>() as f32;
     clustersizes.iter().map(|c| {
         let p = *c as f32 * f;
