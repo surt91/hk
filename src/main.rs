@@ -21,6 +21,7 @@ const ACC_EPS: f32 = 1e-3;
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt, Debug)]
+#[structopt(version = GIT_VERSION)]
 struct Opt {
     #[structopt(short, long)]
     /// number of interacting agents
