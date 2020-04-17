@@ -182,6 +182,9 @@ impl Output {
                 outname.file_name().expect("no filename specified")
             ).with_extension(extension);
 
+        if let Some(dirs) = tmp_path.parent() {
+            std::fs::create_dir_all(&dirs)?;
+        }
         let tmp_file = File::create(&tmp_path)?;
 
         Ok(Output {
@@ -216,6 +219,9 @@ impl Output {
         let tmp_path = tmp_path.with_extension(gz_ext);
 
         // move finished file to final location, (if they differ)
+        if let Some(dirs) = final_path.parent() {
+            std::fs::create_dir_all(&dirs)?;
+        }
         if tmp_path != final_path {
             std::fs::rename(&tmp_path, &final_path).or_else(|_| {
                 std::fs::copy(&tmp_path, &final_path).expect("could not move or copy the file");
