@@ -1,0 +1,16 @@
+#$ -N hk
+
+## Indicates the assumed duration of the job:
+##   seq_short :  CPU time <  1 hour and real time < 10 hours
+##   seq_medium : CPU time < 24 hours
+##   seq_long :   CPU time <  6 months
+#$ -q seq_long
+
+#$ -t 1:129
+#$ -tc 60
+#$ -l m_mem_free=500M
+#$ -cwd
+#$ -j y
+
+mkdir -p data
+$(sed -n ${SGE_TASK_ID}'p' jobs.lst) --tmp $TMP
