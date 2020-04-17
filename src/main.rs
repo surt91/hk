@@ -178,7 +178,7 @@ struct Output {
 }
 
 impl Output {
-    fn new(outname: &PathBuf, extension: &str, tmp_path: &PathBuf) -> std::io::Result<Output> {
+    pub fn new(outname: &PathBuf, extension: &str, tmp_path: &PathBuf) -> std::io::Result<Output> {
         let final_path = outname.with_extension(extension);
         let tmp_path = tmp_path.join(
                 outname.file_name().expect("no filename specified")
@@ -196,7 +196,7 @@ impl Output {
         })
     }
 
-    fn file(&mut self) -> &mut File {
+    pub fn file(&mut self) -> &mut File {
         &mut self.tmp_file
     }
 
@@ -207,7 +207,7 @@ impl Output {
             .expect("failed to zip output file");
     }
 
-    fn finalize(self) -> std::io::Result<()> {
+    pub fn finalize(self) -> std::io::Result<()> {
         let tmp_path = self.tmp_path;
         let final_path = self.final_path;
         // flush and close temporary file
