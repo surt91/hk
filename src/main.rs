@@ -179,10 +179,16 @@ struct Output {
 
 impl Output {
     pub fn new(outname: &PathBuf, extension: &str, tmp_path: &PathBuf) -> std::io::Result<Output> {
+        use rand::{thread_rng, Rng};
+        use rand::distributions::Alphanumeric;
+        let random: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .collect();
+
+        let tmp_path = tmp_path.join(random).with_extension(extension);
+
         let final_path = outname.with_extension(extension);
-        let tmp_path = tmp_path.join(
-                outname.file_name().expect("no filename specified")
-            ).with_extension(extension);
 
         if let Some(dirs) = tmp_path.parent() {
             std::fs::create_dir_all(&dirs)?;
