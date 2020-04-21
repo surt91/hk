@@ -242,15 +242,15 @@ impl HegselmannKrause {
         }
     }
 
-    fn gen_init_resources(&mut self, init_opinion: f32) -> f32 {
+    fn gen_init_resources(&mut self, confidence: f32) -> f32 {
         match self.resource_model {
             ResourceModel::Uniform(l, u) => HegselmannKrause::stretch(self.rng.gen(), l, u),
             ResourceModel::Pareto(x0, a) => {
                 let pareto = Pareto::new(x0, a - 1.).unwrap();
                 pareto.sample(&mut self.rng)
             },
-            ResourceModel::Proportional(a) => init_opinion * a,
-            ResourceModel::Antiproportional(a) => a / init_opinion,
+            ResourceModel::Proportional(a) => confidence * a,
+            ResourceModel::Antiproportional(a) => a / confidence,
         }
     }
 
