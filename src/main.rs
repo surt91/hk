@@ -109,7 +109,7 @@ struct Opt {
     /// 8 -> HK annealing with constant temperature{n}
     model: u32,
 
-    #[structopt(long, default_value = ".", parse(from_os_str))]
+    #[structopt(long, default_value = "./tmp", parse(from_os_str))]
     /// directory to store temporary files
     tmp: PathBuf,
 
