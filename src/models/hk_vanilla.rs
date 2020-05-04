@@ -593,4 +593,20 @@ impl HegselmannKrause {
             .join(" ");
         write!(file, "{}", string_list)
     }
+
+    pub fn write_gp_with_resources(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {
+        writeln!(file, "set terminal pngcairo")?;
+        writeln!(file, "set output '{}.png'", outfilename)?;
+        writeln!(file, "set xl 't'")?;
+        writeln!(file, "set yl 'x_i'")?;
+        writeln!(file, "set xr [0:40]")?;
+        writeln!(file, "set yr [0:1]")?;
+        writeln!(file, "p \\")?;
+
+        let string_list = self.agents.iter().take(100).enumerate()
+            .map(|(n, a)| format!("  '<zcat {}' u 0:{} w l lc {} not, \\\n", outfilename, n+1, if a.resources < 1e-4 {3} else {1}))
+            .join(" ");
+
+        write!(file, "{}", string_list)
+    }
 }

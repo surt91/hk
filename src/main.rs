@@ -206,6 +206,12 @@ impl Output {
         &mut self.tmp_file
     }
 
+    pub fn final_name(&self) -> PathBuf {
+        let mut gz_ext = self.tmp_path.extension().unwrap().to_os_string();
+        gz_ext.push(".gz");
+        self.final_path.with_extension(&gz_ext)
+    }
+
     fn zip(name: &std::path::PathBuf) {
         Command::new("gzip")
             .arg(name.to_str().unwrap())
@@ -215,7 +221,6 @@ impl Output {
 
     pub fn finalize(self) -> std::io::Result<()> {
         let tmp_path = self.tmp_path;
-        let final_path = self.final_path;
         // flush and close temporary file
         self.tmp_file.sync_all()?;
         drop(self.tmp_file);
@@ -225,7 +230,7 @@ impl Output {
         let mut gz_ext = tmp_path.extension().unwrap().to_os_string();
         gz_ext.push(".gz");
         let tmp_path = tmp_path.with_extension(&gz_ext);
-        let final_path = final_path.with_extension(&gz_ext);
+        let final_path = self.final_path.with_extension(&gz_ext);
 
         // move finished file to final location, (if they differ)
         if let Some(dirs) = final_path.parent() {
@@ -304,10 +309,18 @@ fn main() -> std::io::Result<()> {
             let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
             let mut out_info = Output::new(&args.outname, "info.dat", &args.tmp)?;
 
+            // if we only do one sample, we also save a detailed evolution
+            let mut out_detailed = Output::new(&args.outname, "detailed.dat", &args.tmp)?;
+
             write!(out_info.file(), "{}\n{}\n", info_version, info_args)?;
 
             for _ in 0..args.samples {
                 hk.reset();
+
+                // if we only do one sample, we also save a detailed evoluti
+                if args.samples == 1 {
+                    hk.write_state(out_detailed.file())?;
+                }
 
                 let mut ctr = 0;
                 loop {
@@ -318,6 +331,11 @@ fn main() -> std::io::Result<()> {
                         hk.sweep_synchronous();
                     } else {
                         hk.sweep();
+                    }
+
+                    // if we only do one sample, we also save a detailed evoluti
+                    if args.samples == 1 {
+                        hk.write_state(out_detailed.file())?;
                     }
 
                     if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
@@ -341,12 +359,18 @@ fn main() -> std::io::Result<()> {
             hk.write_density(&mut out_density.file())?;
             hk.write_entropy(&mut out_entropy.file())?;
 
+            if args.samples == 1 {
+                let mut gp_file = File::create(&args.outname.with_extension("gp"))?;
+                hk.write_gp_with_resources(&mut gp_file, out_detailed.final_name().to_str().expect("non-unicode filename"))?;
+            }
+
             out_cluster.finalize()?;
             out_nopoor.finalize()?;
             out_scc.finalize()?;
             out_density.finalize()?;
             out_entropy.finalize()?;
             out_info.finalize()?;
+            out_detailed.finalize()?;
 
             Ok(())
         },
