@@ -34,6 +34,7 @@ pub enum ResourceModel {
     Pareto(f32, f32),
     Proportional(f32, f32),
     Antiproportional(f32, f32),
+    HalfGauss(f32),
 }
 
 #[derive(PartialEq, Clone)]
@@ -252,6 +253,10 @@ impl HegselmannKrause {
             },
             ResourceModel::Proportional(a, offset) => (confidence - offset) * a,
             ResourceModel::Antiproportional(a, offset) => 1. - (confidence - offset) * a,
+            ResourceModel::HalfGauss(sigma) => {
+                let gauss = Normal::new(0., sigma).unwrap();
+                gauss.sample(&mut self.rng).abs()
+            },
         }
     }
 
