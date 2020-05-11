@@ -1,6 +1,10 @@
 __pycache__
 target/
+tmp/
 
 out*
 jobs.lst
 *.bak*/
+*.png
+
+tex/
