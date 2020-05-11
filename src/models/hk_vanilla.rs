@@ -153,6 +153,7 @@ impl HegselmannKrauseBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct HegselmannKrause {
     pub num_agents: u32,
     pub agents: Vec<HKAgent>,
@@ -254,6 +255,14 @@ impl HegselmannKrause {
         }
     }
 
+    pub fn prepare_opinion_set(&mut self) {
+        self.opinion_set.clear();
+        for i in self.agents.iter() {
+            *self.opinion_set.entry(OrderedFloat(i.opinion)).or_insert(0) += 1;
+        }
+            assert!(self.opinion_set.iter().map(|(_, v)| v).sum::<u32>() == self.num_agents);
+    }
+
     pub fn reset(&mut self) {
         self.agents = (0..self.num_agents).map(|_| {
             let xi = self.gen_init_opinion();
@@ -266,12 +275,11 @@ impl HegselmannKrause {
             )
         }).collect();
 
-        self.opinion_set.clear();
-        for i in self.agents.iter() {
-            *self.opinion_set.entry(OrderedFloat(i.opinion)).or_insert(0) += 1;
-        }
-        assert!(self.opinion_set.iter().map(|(_, v)| v).sum::<u32>() == self.num_agents);
+        // println!("min:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).min().unwrap());
+        // println!("max:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).max().unwrap());
+        // println!("mean: {}", self.agents.iter().map(|x| x.resources).sum::<f32>() / self.agents.len() as f32);
 
+        self.prepare_opinion_set();
         self.time = 0;
     }
 
@@ -471,6 +479,14 @@ impl HegselmannKrause {
         clusters.iter()
             .map(|c| c.len() as usize)
             .collect()
+    }
+
+    pub fn cluster_max(&self) -> usize {
+        let clusters = self.list_clusters();
+        clusters.iter()
+            .map(|c| c.len() as usize)
+            .max()
+            .unwrap()
     }
 
     pub fn write_cluster_sizes(&self, file: &mut File) -> std::io::Result<()> {

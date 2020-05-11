@@ -6,6 +6,8 @@ use std::process::Command;
 
 use structopt::StructOpt;
 
+use rand::{Rng, SeedableRng};
+use rand_pcg::Pcg64;
 use itertools::Itertools;
 
 use hk::{HegselmannKrauseBuilder,HegselmannKrause};
@@ -20,7 +22,7 @@ const GIT_VERSION: &str = git_version!();
 const ACC_EPS: f32 = 1e-3;
 
 /// Simulate a (modified) Hegselmann Krause model
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt)]
 #[structopt(version = GIT_VERSION)]
 struct Opt {
     #[structopt(short, long)]
@@ -116,7 +118,18 @@ struct Opt {
     #[structopt(short, long, default_value = "out", parse(from_os_str))]
     /// name of the output data file
     outname: PathBuf,
+
+    #[structopt(subcommand)]
+    /// test
+    cmd: Option<LargeDev>
 }
+
+#[derive(StructOpt)]
+enum LargeDev {
+    /// use biased Metropolis sampling
+    Metropolis
+}
+
 
 // TODO: I should introduce the trait `model` and make everything below more generic
 // a model should implement sweep, write_state and write_gp
@@ -298,15 +311,98 @@ fn main() -> std::io::Result<()> {
         _ => unreachable!(),
     };
 
-    match args.model {
-        1 | 3 | 5 => {
-            let mut hk = HegselmannKrauseBuilder::new(
-                args.num_agents,
-            ).seed(args.seed)
+    if let Some(LargeDev::Metropolis) = args.cmd {
+        let mut hk = HegselmannKrauseBuilder::new(args.num_agents)
+            .seed(args.seed)
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .build();
+        hk.reset();
+
+        let mut out = Output::new(&args.outname, "mcmc.dat", &args.tmp)?;
+        let mut out_detailed = Output::new(&args.outname, "detailed.dat", &args.tmp)?;
+
+        let mut mc_rng = Pcg64::seed_from_u64(args.seed+1);
+
+
+        let beta = 1. / args.temperature as f32;
+        let mut state = hk.agents.clone();
+        let mut state_old = state.clone();
+
+        hk.acc_change = ACC_EPS;
+        while hk.acc_change >= ACC_EPS {
+            hk.acc_change = 0.;
+            hk.sweep_synchronous();
+        }
+
+        let mut e_new: f32 = hk.cluster_max() as f32;
+        let mut e_old: f32;
+
+        let mut accept = 0;
+
+        for i in 0..args.samples {
+            let idx = mc_rng.gen_range(0, hk.agents.len());
+            let val: f32 = mc_rng.gen();
+            state[idx].opinion = val;
+            state[idx].initial_opinion = val;
+            hk.agents = state.clone();
+            hk.prepare_opinion_set();
+
+            hk.acc_change = ACC_EPS;
+            while hk.acc_change >= ACC_EPS {
+                hk.acc_change = 0.;
+                hk.sweep_synchronous();
+            }
+
+            e_old = e_new;
+            e_new = hk.cluster_max() as f32;
+
+            // println!("p_acc = {}", ((e_new as f32 - e_old as f32)*beta).exp());
+            let rn = mc_rng.gen::<f32>();
+            // println!("{:?}", rn);
+            if ((e_old as f32 - e_new as f32)*beta).exp() > rn {
+                state_old = state.clone();
+                // println!("accept, {} -> {}", e_old, e_new);
+                accept += 1;
+            } else {
+                state = state_old.clone();
+                // println!("reject {}, {} -> {}", e_new, e_old, e_old);
+                e_new = e_old;
+            }
+            writeln!(out.file(), "{}", e_new)?;
+        }
+
+        // print the last state of the mcmc
+        hk.agents = state;
+        hk.prepare_opinion_set();
+        hk.write_state(out_detailed.file())?;
+        hk.acc_change = ACC_EPS;
+        while hk.acc_change >= ACC_EPS {
+            hk.acc_change = 0.;
+            hk.sweep_synchronous();
+            hk.write_state(out_detailed.file())?;
+        }
+        println!("final size {}", hk.cluster_max());
+
+        println!("acceptance: {:?}", accept as f64 / args.samples as f64);
+
+        let mut gp_file = File::create(&args.outname.with_extension("gp"))?;
+        hk.write_gp_with_resources(&mut gp_file, out_detailed.final_name().to_str().expect("non-unicode filename"))?;
+
+        out.finalize()?;
+        out_detailed.finalize()?;
+        return Ok(());
+    }
+
+    match args.model {
+        1 | 3 | 5 => {
+            let mut hk = HegselmannKrauseBuilder::new(args.num_agents)
+                .seed(args.seed)
+                .cost_model(cost_model)
+                .resource_model(resource_model)
+                .population_model(pop_model)
+                .build();
 
             let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
             let mut out_nopoor = Output::new(&args.outname, "nopoor.dat", &args.tmp)?;
