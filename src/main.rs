@@ -282,12 +282,18 @@ fn main() -> std::io::Result<()> {
             ResourceModel::Pareto(x_min, k + 1.)
         },
         3 => {
-            let prop = (args.min_resources + args.max_resources) / (args.min_tolerance + args.max_tolerance);
-            ResourceModel::Proportional(prop as f32)
+            assert_eq!(args.min_resources, 0.);
+            assert_eq!(args.max_resources, 1.);
+            let offset = args.min_tolerance;
+            let prop = 1. / (args.max_tolerance - args.min_tolerance);
+            ResourceModel::Proportional(prop as f32, offset as f32)
         },
         4 => {
-            let prop = (args.min_resources + args.max_resources) * (args.min_tolerance + args.max_tolerance) / 4.;
-            ResourceModel::Antiproportional(prop as f32)
+            assert_eq!(args.min_resources, 0.);
+            assert_eq!(args.max_resources, 1.);
+            let offset = args.min_tolerance;
+            let prop = 1. / (args.max_tolerance - args.min_tolerance);
+            ResourceModel::Antiproportional(prop as f32, offset as f32)
         },
         _ => unreachable!(),
     };
