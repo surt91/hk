@@ -23,6 +23,12 @@ def bootstrap(xRaw, f=np.mean, n_resample=100):
 
 os.makedirs("plots", exist_ok=True)
 
+# ensure all output files are empty and write header
+ns = set([p["num_agents"] for p in ps])
+for n in ns:
+    with open("plots/fwhp_n{}.dat".format(n), "w") as f:
+        f.write("# eta mean_num_clusters err mean_largest_cluster_size err mean_largest_cluster_size_relative err mean_largest_cluster_width err var_num_clusters err var_largest_cluster_size err var_largest_cluster_size_relative err var_largest_cluster_width err binder err\n")
+
 for p in ps:
     it = p["samples"]
     el = p["tolerance_lower"]
@@ -83,7 +89,11 @@ for p in ps:
                 all_cluster_sizes.append(cluster_sizes)
                 all_cluster_widths.append(cluster_widths)
 
-                if ctr < 5:
+                if ctr < 0:
+                    with open("plots/fwhp_n{}_eta{}_ctr{}.dat".format(p["num_agents"], p["eta"], ctr), "w") as f2:
+                        f2.write("# {} {} {}\n".format(peak_height, peak_height/3., all_borders))
+                        for i, j in zip(centers, data):
+                            f2.write("{} {}\n".format(i, j))
                     plt.plot(centers, data)
                     plt.plot(centers, [peak_height/3. for _ in centers])
                     plt.plot(all_borders, [peak_height/3. for _ in all_borders], "o")
@@ -92,8 +102,9 @@ for p in ps:
                     #plt.show()
                     plt.clf()
 
-    except:
-        print("error for:", name)
+    except Exception as e:
+        print(e, ": error for:", name)
+        
 
     # TODO: collect statistics of the clustersizes
     # TODO: plot the statistics
@@ -107,14 +118,19 @@ for p in ps:
     var_largest_cluster_size, var_largest_cluster_size_err = bootstrap([max(x) for x in all_cluster_sizes], np.var)
     var_largest_cluster_size_relative, var_largest_cluster_size_relative_err = bootstrap([max(x) / sum(x) for x in all_cluster_sizes], np.var)
     var_largest_cluster_width, var_largest_cluster_width_err = bootstrap([y[np.argmax(x)] for x, y in zip(all_cluster_sizes, all_cluster_widths)], np.var)
+    
+    def bi(x):
+        return 3/2*(1-np.mean([i**4 for i in x])/(3*np.mean([i**2 for i in x])**2)) 
+    
+    binder, binder_err = bootstrap([max(x)/p["num_agents"] for x in all_cluster_sizes], f=bi)
 
-    # print(
-    #     p["num_agents"], p["eta"],
+    print(
+        p["num_agents"], p["eta"],
     #     mean_num_clusters, mean_num_clusters_err,
     #     mean_largest_cluster_size, mean_largest_cluster_size_err,
     #     mean_largest_cluster_size_relative, mean_largest_cluster_size_relative_err,
     #     mean_largest_cluster_width, mean_largest_cluster_width_err
-    # )
+    )
 
     with open("plots/fwhp_n{}.dat".format(p["num_agents"]), "a") as f:
         f.write("{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(
@@ -127,6 +143,7 @@ for p in ps:
             var_largest_cluster_size, var_largest_cluster_size_err,
             var_largest_cluster_size_relative, var_largest_cluster_size_relative_err,
             var_largest_cluster_width, var_largest_cluster_width_err,
+            binder, binder_err
         ))
 
 #    plt.gcf().set_size_inches(3+3/8, 2.5)
