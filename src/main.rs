@@ -310,7 +310,9 @@ fn main() -> std::io::Result<()> {
             ResourceModel::Antiproportional(prop as f32, offset as f32)
         },
         5 => {
-            ResourceModel::HalfGauss(args.max_resources as f32)
+            assert_eq!(args.min_resources, 0.);
+            assert_eq!(args.max_resources, 1.);
+            ResourceModel::HalfGauss(0.626_657_07)
         },
         _ => unreachable!(),
     };
