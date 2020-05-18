@@ -193,7 +193,7 @@ struct Output {
 
 impl Output {
     pub fn new(outname: &PathBuf, extension: &str, tmp_path: &PathBuf) -> std::io::Result<Output> {
-        use rand::{thread_rng, Rng};
+        use rand::{thread_rng};
         use rand::distributions::Alphanumeric;
         let random: String = thread_rng()
             .sample_iter(&Alphanumeric)
@@ -562,9 +562,6 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         6 => {
-            use rand::SeedableRng;
-            use rand_pcg::Pcg64;
-
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
@@ -610,9 +607,6 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         7 => {
-            use rand::SeedableRng;
-            use rand_pcg::Pcg64;
-
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
@@ -646,9 +640,6 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         8 => {
-            use rand::SeedableRng;
-            use rand_pcg::Pcg64;
-
             let mut hk = HegselmannKrauseBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
