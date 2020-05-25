@@ -16,6 +16,8 @@ use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel};
 use hk::models::graph;
 
+use largedev::{Metropolis, Simple, WangLandau};
+
 use git_version::git_version;
 const GIT_VERSION: &str = git_version!();
 
@@ -331,70 +333,29 @@ fn main() -> std::io::Result<()> {
 
         let mut mc_rng = Pcg64::seed_from_u64(args.seed+1);
 
+        let (tries, rejects) = Metropolis::new(hk)
+                .temperature(args.temperature)
+                .sweep(args.num_agents as usize)
+                .iterations(args.iterations as usize)
+                .run(&mut mc_rng, out.file())?;
 
-        let beta = 1. / args.temperature as f32;
-        let mut state = hk.agents.clone();
-        let mut state_old = state.clone();
-
-        hk.acc_change = ACC_EPS;
-        while hk.acc_change >= ACC_EPS {
-            hk.acc_change = 0.;
-            hk.sweep_synchronous();
-        }
-
-        let mut e_new: f32 = hk.cluster_max() as f32;
-        let mut e_old: f32;
-
-        let mut accept = 0;
-
-        for i in 0..args.samples {
-            let idx = mc_rng.gen_range(0, hk.agents.len());
-            let val: f32 = mc_rng.gen();
-            state[idx].opinion = val;
-            state[idx].initial_opinion = val;
-            hk.agents = state.clone();
-            hk.prepare_opinion_set();
-
-            hk.acc_change = ACC_EPS;
-            while hk.acc_change >= ACC_EPS {
-                hk.acc_change = 0.;
-                hk.sweep_synchronous();
-            }
-
-            e_old = e_new;
-            e_new = hk.cluster_max() as f32;
-
-            // println!("p_acc = {}", ((e_new as f32 - e_old as f32)*beta).exp());
-            let rn = mc_rng.gen::<f32>();
-            // println!("{:?}", rn);
-            if ((e_old as f32 - e_new as f32)*beta).exp() > rn {
-                state_old = state.clone();
-                // println!("accept, {} -> {}", e_old, e_new);
-                accept += 1;
-            } else {
-                state = state_old.clone();
-                // println!("reject {}, {} -> {}", e_new, e_old, e_old);
-                e_new = e_old;
-            }
-            writeln!(out.file(), "{}", e_new)?;
-        }
+        println!("rejection: {}%", rejects as f32 / tries as f32 * 100.);
 
         // print the last state of the mcmc
-        hk.agents = state;
-        hk.prepare_opinion_set();
-        hk.write_state(out_detailed.file())?;
-        hk.acc_change = ACC_EPS;
-        while hk.acc_change >= ACC_EPS {
-            hk.acc_change = 0.;
-            hk.sweep_synchronous();
-            hk.write_state(out_detailed.file())?;
-        }
-        println!("final size {}", hk.cluster_max());
 
-        println!("acceptance: {:?}", accept as f64 / args.samples as f64);
+        // hk.agents = hk.agents_initial;
+        // hk.prepare_opinion_set();
+        // hk.write_state(out_detailed.file())?;
+        // hk.acc_change = ACC_EPS;
+        // while hk.acc_change >= ACC_EPS {
+        //     hk.acc_change = 0.;
+        //     hk.sweep_synchronous();
+        //     hk.write_state(out_detailed.file())?;
+        // }
+        // println!("final size {}", hk.cluster_max());
 
-        let mut gp_file = File::create(&args.outname.with_extension("gp"))?;
-        hk.write_gp_with_resources(&mut gp_file, out_detailed.final_name().to_str().expect("non-unicode filename"))?;
+        // let mut gp_file = File::create(&args.outname.with_extension("gp"))?;
+        // hk.write_gp_with_resources(&mut gp_file, out_detailed.final_name().to_str().expect("non-unicode filename"))?;
 
         out.finalize()?;
         out_detailed.finalize()?;

@@ -17,6 +17,8 @@ petgraph = "0.4"
 
 git-version = "*"
 
+largedev = { git = "https://github.com/surt91/largedev" }
+
 [dev-dependencies]
 criterion = "0.3"
 

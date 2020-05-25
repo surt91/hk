@@ -15,9 +15,12 @@ use itertools::Itertools;
 
 use ordered_float::OrderedFloat;
 
+use largedev::{MarkovChain, Model};
+
 /// maximal time to save density information for
 const THRESHOLD: usize = 4000;
 const EPS: f32 = 1e-4;
+const ACC_EPS: f32 = 1e-3;
 const DENSITYBINS: usize = 100;
 
 #[derive(PartialEq, Clone)]
@@ -134,7 +137,7 @@ impl HegselmannKrauseBuilder {
 
         let mut hk = HegselmannKrause {
             num_agents: self.num_agents,
-            agents,
+            agents: agents.clone(),
             time: 0,
             cost_model: self.cost_model.clone(),
             resource_model: self.resource_model.clone(),
@@ -147,6 +150,9 @@ impl HegselmannKrauseBuilder {
             density_slice: vec![0; DENSITYBINS+1],
             entropies_acc: Vec::new(),
             rng,
+            undo_idx: 0,
+            undo_val: 0.,
+            agents_initial: agents,
         };
 
         hk.reset();
@@ -176,6 +182,11 @@ pub struct HegselmannKrause {
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
     rng: Pcg64,
+
+    // for Markov chains
+    undo_idx: usize,
+    undo_val: f32,
+    pub agents_initial: Vec<HKAgent>,
 }
 
 impl PartialEq for HegselmannKrause {
@@ -629,5 +640,39 @@ impl HegselmannKrause {
             .join(" ");
 
         write!(file, "{}", string_list)
+    }
+}
+
+impl Model for HegselmannKrause {
+    fn value(&self) -> f64 {
+        self.cluster_max() as f64 / self.num_agents as f64
+    }
+}
+
+impl MarkovChain for HegselmannKrause {
+    fn change(&mut self, rng: &mut impl Rng) {
+        self.undo_idx = rng.gen_range(0, self.agents.len());
+        self.undo_val = rng.gen();
+
+        self.undo_idx = rng.gen_range(0, self.agents.len());
+        let val: f32 = rng.gen();
+        self.undo_val = self.agents_initial[self.undo_idx].initial_opinion;
+
+        self.agents_initial[self.undo_idx].opinion = val;
+        self.agents_initial[self.undo_idx].initial_opinion = val;
+
+        self.agents = self.agents_initial.clone();
+        self.prepare_opinion_set();
+        self.acc_change = ACC_EPS;
+        while self.acc_change >= ACC_EPS {
+            self.acc_change = 0.;
+            self.sweep();
+        }
+    }
+
+    fn undo(&mut self) {
+        self.agents_initial[self.undo_idx].opinion = self.undo_val;
+        self.agents_initial[self.undo_idx].initial_opinion = self.undo_val;
+        self.agents = self.agents_initial.clone();
     }
 }
