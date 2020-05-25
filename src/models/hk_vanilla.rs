@@ -291,6 +291,8 @@ impl HegselmannKrause {
             )
         }).collect();
 
+        self.agents_initial = self.agents.clone();
+
         // println!("min:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).min().unwrap());
         // println!("max:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).max().unwrap());
         // println!("mean: {}", self.agents.iter().map(|x| x.resources).sum::<f32>() / self.agents.len() as f32);

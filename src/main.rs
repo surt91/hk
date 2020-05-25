@@ -128,9 +128,21 @@ struct Opt {
 }
 
 #[derive(StructOpt)]
+struct WL {
+    low: f64,
+    high: f64,
+    #[structopt(long, default_value = "100")]
+    num_bins: usize,
+    #[structopt(long, default_value = "1e-5")]
+    lnf: f64,
+}
+
+#[derive(StructOpt)]
 enum LargeDev {
     /// use biased Metropolis sampling
-    Metropolis
+    Metropolis,
+    /// use biased Wang Landau sampling
+    WangLandau(WL),
 }
 
 
@@ -329,7 +341,6 @@ fn main() -> std::io::Result<()> {
         hk.reset();
 
         let mut out = Output::new(&args.outname, "mcmc.dat", &args.tmp)?;
-        let mut out_detailed = Output::new(&args.outname, "detailed.dat", &args.tmp)?;
 
         let mut mc_rng = Pcg64::seed_from_u64(args.seed+1);
 
@@ -341,24 +352,34 @@ fn main() -> std::io::Result<()> {
 
         println!("rejection: {}%", rejects as f32 / tries as f32 * 100.);
 
-        // print the last state of the mcmc
+        out.finalize()?;
 
-        // hk.agents = hk.agents_initial;
-        // hk.prepare_opinion_set();
-        // hk.write_state(out_detailed.file())?;
-        // hk.acc_change = ACC_EPS;
-        // while hk.acc_change >= ACC_EPS {
-        //     hk.acc_change = 0.;
-        //     hk.sweep_synchronous();
-        //     hk.write_state(out_detailed.file())?;
-        // }
-        // println!("final size {}", hk.cluster_max());
+        return Ok(());
+    }
 
-        // let mut gp_file = File::create(&args.outname.with_extension("gp"))?;
-        // hk.write_gp_with_resources(&mut gp_file, out_detailed.final_name().to_str().expect("non-unicode filename"))?;
+    if let Some(LargeDev::WangLandau(wl)) = args.cmd {
+        let mut hk = HegselmannKrauseBuilder::new(args.num_agents)
+            .seed(args.seed)
+            .cost_model(cost_model)
+            .resource_model(resource_model)
+            .population_model(pop_model)
+            .build();
+        hk.reset();
+
+        let mut out = Output::new(&args.outname, "mcmc.dat", &args.tmp)?;
+
+        let mut mc_rng = Pcg64::seed_from_u64(args.seed+1);
+
+        let (tries, rejects) = WangLandau::new(hk, wl.low, wl.high)
+                .bins(wl.num_bins)
+                .lnf_final(wl.lnf)
+                .sweep(args.num_agents as usize)
+                .run(&mut mc_rng, out.file())?;
+
+        println!("rejection: {}%", rejects as f32 / tries as f32 * 100.);
 
         out.finalize()?;
-        out_detailed.finalize()?;
+
         return Ok(());
     }
 
