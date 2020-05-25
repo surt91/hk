@@ -78,7 +78,7 @@ struct Opt {
     /// start resources for HKAC
     start_resources: f64,
 
-    #[structopt(short = "T", long, default_value = "1.")]
+    #[structopt(short = "T", long, default_value = "1.0", allow_hyphen_values = true)]
     /// temperature (only for fixed temperature 8)
     temperature: f64,
 
