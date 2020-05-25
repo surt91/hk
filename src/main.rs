@@ -339,6 +339,7 @@ fn main() -> std::io::Result<()> {
             .population_model(pop_model)
             .build();
         hk.reset();
+        hk.relax();
 
         let mut out = Output::new(&args.outname, "mcmc.dat", &args.tmp)?;
 
@@ -365,6 +366,7 @@ fn main() -> std::io::Result<()> {
             .population_model(pop_model)
             .build();
         hk.reset();
+        hk.relax();
 
         let mut out = Output::new(&args.outname, "mcmc.dat", &args.tmp)?;
 
