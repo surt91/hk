@@ -15,6 +15,8 @@ use itertools::Itertools;
 
 use ordered_float::OrderedFloat;
 
+use petgraph::graph::{Graph, NodeIndex};
+
 use largedev::{MarkovChain, Model};
 
 /// maximal time to save density information for
@@ -57,6 +59,14 @@ pub enum PopulationModel {
     PowerLawBound(f32, f32, f32),
 }
 
+#[derive(PartialEq, Clone)]
+pub enum TopologyModel {
+    /// every agent can interact with any other agent
+    FullyConnected,
+    /// Erdos-Renyi
+    ER(f32),
+}
+
 #[derive(Clone, Debug)]
 pub struct HKAgent {
     pub opinion: f32,
@@ -89,6 +99,7 @@ pub struct HegselmannKrauseBuilder {
     cost_model: CostModel,
     resource_model: ResourceModel,
     population_model: PopulationModel,
+    topology_model: TopologyModel,
 
     seed: u64,
 }
@@ -101,6 +112,7 @@ impl HegselmannKrauseBuilder {
             cost_model: CostModel::Free,
             resource_model: ResourceModel::Uniform(0., 1.),
             population_model: PopulationModel::Uniform(0., 1.),
+            topology_model: TopologyModel::FullyConnected,
 
             seed: 42,
         }
@@ -118,6 +130,11 @@ impl HegselmannKrauseBuilder {
 
     pub fn population_model(&mut self, population_model: PopulationModel) -> &mut HegselmannKrauseBuilder {
         self.population_model = population_model;
+        self
+    }
+
+    pub fn topology_model(&mut self, topology_model: TopologyModel) -> &mut HegselmannKrauseBuilder {
+        self.topology_model = topology_model;
         self
     }
 
@@ -139,9 +156,12 @@ impl HegselmannKrauseBuilder {
             num_agents: self.num_agents,
             agents: agents.clone(),
             time: 0,
+            topology: None,
+            topology_idx: None,
             cost_model: self.cost_model.clone(),
             resource_model: self.resource_model.clone(),
             population_model: self.population_model.clone(),
+            topology_model: self.topology_model.clone(),
             opinion_set,
             acc_change: 0.,
             dynamic_density,
@@ -166,9 +186,15 @@ pub struct HegselmannKrause {
     pub agents: Vec<HKAgent>,
     pub time: usize,
 
+    /// topology of the possible interaction between agents
+    /// None means fully connected
+    topology: Option<Graph<usize, u32>>,
+    topology_idx: Option<Vec<NodeIndex>>,
+
     pub cost_model: CostModel,
     resource_model: ResourceModel,
     population_model: PopulationModel,
+    topology_model: TopologyModel,
 
     pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
     pub acc_change: f32,
@@ -271,6 +297,19 @@ impl HegselmannKrause {
         }
     }
 
+    fn gen_init_topology(&mut self) -> Option<Graph<usize, u32>> {
+        match self.topology_model {
+            TopologyModel::FullyConnected => None,
+            TopologyModel::ER(c) => {
+                let mut g = Graph::new();
+                self.topology_idx = Some(self.agents.iter().enumerate().map(|(n, agent)| g.add_node(n)).collect());
+                // draw `m' from binomial distribution how many edges the ER should have
+                // draw `m' unconnected pairs of agents and connect them
+                Some(g)
+            }
+        }
+    }
+
     pub fn prepare_opinion_set(&mut self) {
         self.opinion_set.clear();
         for i in self.agents.iter() {
@@ -292,6 +331,11 @@ impl HegselmannKrause {
         }).collect();
 
         self.agents_initial = self.agents.clone();
+
+        self.topology = self.gen_init_topology();
+        // if let Some(top) = self.topology {
+        //     // TODO ???
+        // }
 
         // println!("min:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).min().unwrap());
         // println!("max:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).max().unwrap());
@@ -353,10 +397,17 @@ impl HegselmannKrause {
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
         let i = &self.agents[idx];
 
-        let (sum, count) = self.agents.iter()
-            .map(|j| j.opinion)
-            .filter(|j| (i.opinion - j).abs() < i.tolerance)
-            .fold((0., 0), |(sum, count), i| (sum + i, count + 1));
+        let (sum, count) = if let (Some(g), Some(nodes)) = (self.topology.as_ref(), self.topology_idx.as_ref()) {
+            g.neighbors(nodes[idx])
+                .map(|j| self.agents[g[j]].opinion)
+                .filter(|j| (i.opinion - j).abs() < i.tolerance)
+                .fold((0., 0), |(sum, count), i| (sum + i, count + 1))
+        } else {
+            self.agents.iter()
+                .map(|j| j.opinion)
+                .filter(|j| (i.opinion - j).abs() < i.tolerance)
+                .fold((0., 0), |(sum, count), i| (sum + i, count + 1))
+        };
 
         let new_opinion = sum / count as f32;
         let (new_opinion, new_resources) = self.pay(idx, new_opinion);
@@ -370,6 +421,10 @@ impl HegselmannKrause {
         // get a random agent
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
         let i = &self.agents[idx];
+
+        if self.topology_model != TopologyModel::FullyConnected {
+            panic!("The tree update does only work for fully connected topologies (though it could be extended)");
+        }
 
         let (sum, count) = self.opinion_set
             .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
@@ -389,22 +444,40 @@ impl HegselmannKrause {
 
     pub fn sweep(&mut self) {
         for _ in 0..self.num_agents {
-            // self.step_naive();
-            self.step_bisect();
+            match self.topology_model {
+                // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
+                TopologyModel::ER(_) => self.step_naive(),
+                TopologyModel::FullyConnected => self.step_bisect(),
+            }
         }
         self.add_state_to_density();
         self.time += 1;
     }
 
     fn sync_new_opinions_naive(&self) -> Vec<f32> {
-        self.agents.iter().map(|i| {
+        self.agents.iter().enumerate().map(|(idx, i)| {
             let mut tmp = 0.;
             let mut count = 0;
-            for j in self.agents.iter()
-                    .filter(|j| (i.opinion - j.opinion).abs() < i.tolerance) {
-                tmp += j.opinion;
-                count += 1;
-            }
+
+            if let (Some(g), Some(nodes)) = (self.topology.as_ref(), self.topology_idx.as_ref()) {
+                g.neighbors(nodes[idx])
+                    .map(|j| self.agents[g[j]].opinion)
+                    .filter(|j| (i.opinion - j).abs() < i.tolerance)
+                    .fold((0., 0), |(sum, count), i| (sum + i, count + 1));
+                for j in g.neighbors(nodes[idx])
+                       .filter(|j| (i.opinion - self.agents[g[*j]].opinion).abs() < i.tolerance) {
+                    tmp += self.agents[g[j]].opinion;
+                    count += 1;
+                }
+            } else {
+                for j in self.agents.iter()
+                        .filter(|j| (i.opinion - j.opinion).abs() < i.tolerance) {
+                    tmp += j.opinion;
+                    count += 1;
+                }
+            };
+
+
 
             tmp /= count as f32;
             tmp
@@ -414,6 +487,7 @@ impl HegselmannKrause {
     pub fn sweep_synchronous_naive(&mut self) {
         let new_opinions = self.sync_new_opinions_naive();
         self.acc_change = 0.;
+
         for i in 0..self.num_agents as usize {
             let (new_opinion, new_resources) = self.pay(i, new_opinions[i]);
 
@@ -426,6 +500,10 @@ impl HegselmannKrause {
     }
 
     fn sync_new_opinions_bisect(&self) -> Vec<f32> {
+        if self.topology_model != TopologyModel::FullyConnected {
+            panic!("The tree update does only work for fully connected topologies (though it could be extended)")
+        }
+
         self.agents.clone().iter().map(|i| {
             let (sum, count) = self.opinion_set
                 .range((Included(&OrderedFloat(i.opinion-i.tolerance)), Included(&OrderedFloat(i.opinion+i.tolerance))))
@@ -456,7 +534,11 @@ impl HegselmannKrause {
     }
 
     pub fn sweep_synchronous(&mut self) {
-        self.sweep_synchronous_bisect();
+        match self.topology_model {
+            // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
+            TopologyModel::ER(_) => self.sweep_synchronous_naive(),
+            TopologyModel::FullyConnected => self.sweep_synchronous_bisect(),
+        }
         self.time += 1;
     }
 
