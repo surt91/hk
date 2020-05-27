@@ -6,5 +6,8 @@ out*
 jobs.lst
 *.bak*/
 *.png
+*.gz
+*.gp
+*.dat
 
 tex/
