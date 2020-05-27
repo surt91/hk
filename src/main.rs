@@ -13,7 +13,7 @@ use itertools::Itertools;
 use hk::{HegselmannKrauseBuilder,HegselmannKrause};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel};
+use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel};
 use hk::models::graph;
 
 use largedev::{Metropolis, Simple, WangLandau};
@@ -69,6 +69,18 @@ struct Opt {
     #[structopt(long, default_value = "1")]
     /// maximal resources for HKCost
     max_resources: f64,
+
+    #[structopt(long, default_value = "1", possible_values = &["1", "2"])]
+    /// topology:{n}
+    /// 1 => fully connected{n}
+    /// 2 => erdoes renyi{n}
+    topology: u32,
+
+    #[structopt(long, default_value = "1")]
+    /// dependent on topology:{n}
+    /// 1 => fully connected: unused{n}
+    /// 2 => erdoes renyi: connectivity{n}
+    topology_parameter: f32,
 
     #[structopt(long, default_value = "0.01")]
     /// weight of cost
@@ -331,12 +343,19 @@ fn main() -> std::io::Result<()> {
         _ => unreachable!(),
     };
 
+    let topology_model = match args.topology {
+        1 => TopologyModel::FullyConnected,
+        2 => TopologyModel::ER(args.topology_parameter),
+        _ => unreachable!(),
+    };
+
     if let Some(LargeDev::Metropolis) = args.cmd {
         let mut hk = HegselmannKrauseBuilder::new(args.num_agents)
             .seed(args.seed)
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
+            .topology_model(topology_model)
             .build();
         hk.reset();
         hk.relax();
@@ -364,6 +383,7 @@ fn main() -> std::io::Result<()> {
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
+            .topology_model(topology_model)
             .build();
         hk.reset();
         hk.relax();
@@ -392,6 +412,7 @@ fn main() -> std::io::Result<()> {
                 .cost_model(cost_model)
                 .resource_model(resource_model)
                 .population_model(pop_model)
+                .topology_model(topology_model)
                 .build();
 
             let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
