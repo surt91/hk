@@ -9,13 +9,16 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use rand::{Rng, SeedableRng};
-use rand_distr::{Normal, Pareto, Distribution};
+use rand_distr::{Normal, Pareto, Distribution, Binomial};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
 use ordered_float::OrderedFloat;
 
 use petgraph::graph::{Graph, NodeIndex};
+use petgraph::Undirected;
+use petgraph::algo::connected_components;
+use super::graph::size_largest_connected_component;
 
 use largedev::{MarkovChain, Model};
 
@@ -188,7 +191,7 @@ pub struct HegselmannKrause {
 
     /// topology of the possible interaction between agents
     /// None means fully connected
-    topology: Option<Graph<usize, u32>>,
+    topology: Option<Graph<usize, u32, Undirected>>,
     topology_idx: Option<Vec<NodeIndex>>,
 
     pub cost_model: CostModel,
@@ -297,14 +300,31 @@ impl HegselmannKrause {
         }
     }
 
-    fn gen_init_topology(&mut self) -> Option<Graph<usize, u32>> {
+    fn gen_init_topology(&mut self) -> Option<Graph<usize, u32, Undirected>> {
         match self.topology_model {
             TopologyModel::FullyConnected => None,
             TopologyModel::ER(c) => {
-                let mut g = Graph::new();
-                self.topology_idx = Some(self.agents.iter().enumerate().map(|(n, agent)| g.add_node(n)).collect());
+                let mut g = Graph::new_undirected();
+                self.topology_idx = Some(self.agents.iter().enumerate().map(|(n, _agent)| g.add_node(n)).collect());
                 // draw `m' from binomial distribution how many edges the ER should have
+                let n = self.agents.len();
+                let p = c / n as f32;
+                let binom = Binomial::new((n*(n-1)) as u64, p as f64).unwrap();
+                let m = binom.sample(&mut self.rng);
                 // draw `m' unconnected pairs of agents and connect them
+                let mut ctr = 0;
+                while ctr < m {
+                    let idx1 = self.rng.gen_range(0, n);
+                    let node1 = self.topology_idx.as_ref().unwrap()[idx1];
+                    let idx2 = self.rng.gen_range(0, n);
+                    let node2 = self.topology_idx.as_ref().unwrap()[idx2];
+
+                    if idx1 != idx2 && g.find_edge(node1, node2) == None {
+                        g.add_edge(node1, node2, 1);
+                        ctr += 1;
+                    }
+                }
+
                 Some(g)
             }
         }
@@ -333,9 +353,6 @@ impl HegselmannKrause {
         self.agents_initial = self.agents.clone();
 
         self.topology = self.gen_init_topology();
-        // if let Some(top) = self.topology {
-        //     // TODO ???
-        // }
 
         // println!("min:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).min().unwrap());
         // println!("max:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).max().unwrap());
@@ -398,7 +415,9 @@ impl HegselmannKrause {
         let i = &self.agents[idx];
 
         let (sum, count) = if let (Some(g), Some(nodes)) = (self.topology.as_ref(), self.topology_idx.as_ref()) {
+            // iterate over all neighbors and yourself to find all interaction partners
             g.neighbors(nodes[idx])
+                .chain(std::iter::once(nodes[idx]))
                 .map(|j| self.agents[g[j]].opinion)
                 .filter(|j| (i.opinion - j).abs() < i.tolerance)
                 .fold((0., 0), |(sum, count), i| (sum + i, count + 1))
@@ -410,7 +429,10 @@ impl HegselmannKrause {
         };
 
         let new_opinion = sum / count as f32;
+        let old = i.opinion;
         let (new_opinion, new_resources) = self.pay(idx, new_opinion);
+
+        self.acc_change += (old - new_opinion).abs();
 
         self.agents[idx].opinion = new_opinion;
         self.agents[idx].resources = new_resources;
@@ -460,11 +482,8 @@ impl HegselmannKrause {
             let mut count = 0;
 
             if let (Some(g), Some(nodes)) = (self.topology.as_ref(), self.topology_idx.as_ref()) {
-                g.neighbors(nodes[idx])
-                    .map(|j| self.agents[g[j]].opinion)
-                    .filter(|j| (i.opinion - j).abs() < i.tolerance)
-                    .fold((0., 0), |(sum, count), i| (sum + i, count + 1));
-                for j in g.neighbors(nodes[idx])
+                // iterate over all neighbors and yourself (without yourself there could be infinite loops of two flipping agents)
+                for j in g.neighbors(nodes[idx]).chain(std::iter::once(nodes[idx]))
                        .filter(|j| (i.opinion - self.agents[g[*j]].opinion).abs() < i.tolerance) {
                     tmp += self.agents[g[j]].opinion;
                     count += 1;
@@ -476,8 +495,6 @@ impl HegselmannKrause {
                     count += 1;
                 }
             };
-
-
 
             tmp /= count as f32;
             tmp
@@ -726,6 +743,21 @@ impl HegselmannKrause {
         write!(file, "{}", string_list)
     }
 
+    pub fn write_topology_info(&self, file: &mut File) -> std::io::Result<()> {
+        let (num_components, lcc_num, lcc) =
+            if let Some(g) = &self.topology {
+                let (num, size) = size_largest_connected_component(&g);
+                (connected_components(&g), num, size)
+            } else {
+                // fully connected
+                (1, 1, self.num_agents as usize)
+            };
+
+        // TODO: save more information: size of the largest component, ...
+        writeln!(file, "{} {} {}", num_components, lcc_num, lcc)
+        // println!("n {}, c {}, p {}, m {}, num components: {:?}", n, c, p, m, components);
+    }
+
     pub fn relax(&mut self) {
         self.acc_change = ACC_EPS;
 
@@ -734,7 +766,7 @@ impl HegselmannKrause {
             self.acc_change = 0.;
             self.sweep_synchronous();
         }
-}
+    }
 }
 
 impl Model for HegselmannKrause {

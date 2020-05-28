@@ -420,6 +420,7 @@ fn main() -> std::io::Result<()> {
             let mut out_scc = Output::new(&args.outname, "scc.dat", &args.tmp)?;
             let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
             let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
+            let mut out_topology = Output::new(&args.outname, "topology.dat", &args.tmp)?;
             let mut out_info = Output::new(&args.outname, "info.dat", &args.tmp)?;
 
             // if we only do one sample, we also save a detailed evolution
@@ -460,6 +461,7 @@ fn main() -> std::io::Result<()> {
                 }
                 hk.write_cluster_sizes(&mut out_cluster.file())?;
                 hk.write_cluster_sizes_nopoor(&mut out_nopoor.file())?;
+                hk.write_topology_info(&mut out_topology.file())?;
 
                 if args.scc {
                     let clusters = cluster_sizes_from_graph(&hk);
@@ -482,6 +484,7 @@ fn main() -> std::io::Result<()> {
             out_scc.finalize()?;
             out_density.finalize()?;
             out_entropy.finalize()?;
+            out_topology.finalize()?;
             out_info.finalize()?;
             out_detailed.finalize()?;
 
