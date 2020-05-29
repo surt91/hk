@@ -18,7 +18,7 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
 use petgraph::algo::connected_components;
-use super::graph::size_largest_connected_component;
+use super::graph::{size_largest_connected_component, build_er};
 
 use largedev::{MarkovChain, Model};
 
@@ -304,26 +304,14 @@ impl HegselmannKrause {
         match self.topology_model {
             TopologyModel::FullyConnected => None,
             TopologyModel::ER(c) => {
-                let mut g = Graph::new_undirected();
-                self.topology_idx = Some(self.agents.iter().enumerate().map(|(n, _agent)| g.add_node(n)).collect());
-                // draw `m' from binomial distribution how many edges the ER should have
-                let n = self.agents.len();
-                let p = c / n as f32;
-                let binom = Binomial::new((n*(n-1)) as u64, p as f64).unwrap();
-                let m = binom.sample(&mut self.rng);
-                // draw `m' unconnected pairs of agents and connect them
-                let mut ctr = 0;
-                while ctr < m {
-                    let idx1 = self.rng.gen_range(0, n);
-                    let node1 = self.topology_idx.as_ref().unwrap()[idx1];
-                    let idx2 = self.rng.gen_range(0, n);
-                    let node2 = self.topology_idx.as_ref().unwrap()[idx2];
+                let mut g;
+                while {
+                    let n = self.agents.len();
+                    g = build_er(n, c as f64, &mut self.rng);
+                    size_largest_connected_component(&g).0 != 1
+                } {}
 
-                    if idx1 != idx2 && g.find_edge(node1, node2) == None {
-                        g.add_edge(node1, node2, 1);
-                        ctr += 1;
-                    }
-                }
+                self.topology_idx = Some(g.node_indices().collect());
 
                 Some(g)
             }
@@ -747,6 +735,7 @@ impl HegselmannKrause {
         let (num_components, lcc_num, lcc) =
             if let Some(g) = &self.topology {
                 let (num, size) = size_largest_connected_component(&g);
+
                 (connected_components(&g), num, size)
             } else {
                 // fully connected

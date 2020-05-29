@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use rand::Rng;
-use rand_distr::Binomial;
+use rand_distr::{Binomial, Distribution};
 
-use petgraph::graph::{DiGraph, UnGraph, Graph};
+use petgraph::graph::{DiGraph, UnGraph, Graph, NodeIndex};
 use petgraph::algo::{tarjan_scc, condensation};
 use petgraph::dot;
 use petgraph::unionfind::UnionFind;
@@ -53,8 +53,13 @@ pub fn condense(g: &DiGraph::<i32, f32>) -> DiGraph::<i32, f32> {
 
 pub fn size_largest_connected_component(g : &UnGraph<usize, u32>) -> (usize, usize) {
     let mut uf = UnionFind::new(g.node_count());
+    let mut reverse_lookup: HashMap<NodeIndex<_>, usize> = HashMap::new();
     for (i, n1) in g.node_indices().enumerate() {
-        for (j, _n2) in g.neighbors(n1).enumerate() {
+        reverse_lookup.insert(n1, i);
+    }
+    for (i, n1) in g.node_indices().enumerate() {
+        for n2 in g.neighbors(n1) {
+            let j = reverse_lookup[&n2];
             uf.union(i, j);
         }
     }
@@ -65,5 +70,32 @@ pub fn size_largest_connected_component(g : &UnGraph<usize, u32>) -> (usize, usi
         *counter.entry(l).or_insert(0) += 1;
     }
 
+    use petgraph::algo::connected_components;
+    assert_eq!(connected_components(&g), counter.values().len());
+
     (counter.values().len(), *counter.values().max().unwrap())
+}
+
+pub fn build_er(n: usize, c: f64, mut rng: &mut impl Rng) -> Graph<usize, u32, Undirected> {
+    let mut g = Graph::new_undirected();
+    let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+    // draw `m' from binomial distribution how many edges the ER should have
+    let p = c / n as f64;
+    let binom = Binomial::new((n*(n-1) / 2) as u64, p).unwrap();
+    let m = binom.sample(&mut rng);
+    // draw `m' unconnected pairs of agents and connect them
+    let mut ctr = 0;
+    while ctr < m {
+        let idx1 = rng.gen_range(0, n);
+        let node1 = node_array[idx1];
+        let idx2 = rng.gen_range(0, n);
+        let node2 = node_array[idx2];
+
+        if idx1 != idx2 && g.find_edge(node1, node2) == None {
+            g.add_edge(node1, node2, 1);
+            ctr += 1;
+        }
+    }
+
+    g
 }
