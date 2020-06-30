@@ -80,7 +80,8 @@ struct Opt {
     #[structopt(long, default_value = "1")]
     /// dependent on topology:{n}
     /// 1 => fully connected: unused{n}
-    /// 2 => erdoes renyi: connectivity{n}
+    /// 2 => Erdoes Eenyi: connectivity{n}
+    /// 3 => Barabasi Albert mean degree{n}
     topology_parameter: f32,
 
     #[structopt(long, default_value = "0.01")]
@@ -347,7 +348,7 @@ fn main() -> std::io::Result<()> {
     let topology_model = match args.topology {
         1 => TopologyModel::FullyConnected,
         2 => TopologyModel::ER(args.topology_parameter),
-        3 => TopologyModel::BA(args.topology_parameter as f64, args.topology_parameter.ceil() as usize),
+        3 => TopologyModel::BA(args.topology_parameter as f64, (2.*args.topology_parameter).ceil() as usize),
         _ => unreachable!(),
     };
 

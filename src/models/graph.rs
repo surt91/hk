@@ -119,7 +119,7 @@ pub fn build_ba(n: usize, degree: f64, m0: usize, mut rng: &mut impl Rng) -> Gra
         }
     }
 
-    for i in nodes {
+    for &i in nodes.iter().skip(m0) {
         // add new node and connect to `m` nodes
         for j in 0..m.ceil() as usize {
             // if we have a fractional m, only add a node with the probability of the fractional part
