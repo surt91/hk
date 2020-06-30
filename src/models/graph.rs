@@ -48,6 +48,10 @@ pub fn dot(g: &DiGraph::<i32, f32>) -> String {
     dot::Dot::with_config(&g, &[dot::Config::EdgeNoLabel]).to_string()
 }
 
+pub fn dot2(g: &Graph::<usize, u32, Undirected>) -> String {
+    dot::Dot::with_config(&g, &[dot::Config::EdgeNoLabel]).to_string()
+}
+
 pub fn condense(g: &DiGraph::<i32, f32>) -> DiGraph::<i32, f32> {
     condensation(g.clone(), true).map(|_, x| x.len() as i32, |_, x| *x)
 }
@@ -143,4 +147,55 @@ pub fn build_ba(n: usize, degree: f64, m0: usize, mut rng: &mut impl Rng) -> Gra
     }
 
     g
+}
+
+// we need a function which gives us a new degree vector given an rng
+// all parameters mus already be incorporated inside this factory
+// So, passing a closure is recommended
+pub fn build_cm<R: Rng>(degree_vector_factory: impl Fn(&mut R) -> Vec<usize>, mut rng: &mut R) -> Graph<usize, u32, Undirected> {
+    'main: loop {
+        let degrees = degree_vector_factory(&mut rng);
+        let n = degrees.len();
+        let num_stubs: usize = degrees.iter().sum();
+
+        // if there is an uneven number of stubs, creation of a graph is impossible
+        if num_stubs % 2 != 0 {
+            continue
+        }
+
+        let mut g = Graph::new_undirected();
+        let nodes: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+
+        // generate stubs
+        let mut stubs = Vec::new();
+        for (i, &d) in degrees.iter().enumerate() {
+            for _ in 0..d {
+                stubs.push(i)
+            }
+        }
+
+        // connect stubs
+        while !stubs.is_empty() {
+            // draw two random stubs and swap the last element to preserve a contiguous vector
+            let n = stubs.len();
+            let i1 = rng.gen_range(0, n);
+            stubs.swap(i1, n-1);
+            let stub1 = stubs.pop().unwrap();
+
+            let n = stubs.len();
+            let i2 = rng.gen_range(0, n);
+            stubs.swap(i2, n-1);
+            let stub2 = stubs.pop().unwrap();
+
+            // self loops and multi edges are not allowed
+            if stub1 == stub2 || g.find_edge(nodes[stub1], nodes[stub2]) != None {
+                // for correct statistics, we have to start from scratch
+                continue 'main
+            }
+
+            g.add_edge(nodes[stub1], nodes[stub2], 1);
+        }
+
+        break g
+    }
 }

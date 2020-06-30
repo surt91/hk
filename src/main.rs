@@ -13,7 +13,7 @@ use itertools::Itertools;
 use hk::{HegselmannKrauseBuilder,HegselmannKrause};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel};
+use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel, DegreeDist};
 use hk::models::graph;
 
 use largedev::{Metropolis, Simple, WangLandau};
@@ -70,18 +70,20 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4"])]
     /// topology:{n}
     /// 1 => fully connected{n}
     /// 2 => Erdoes Renyi{n}
     /// 3 => Barabasi Albert{n}
+    /// 4 => Configuration Model{n}
     topology: u32,
 
     #[structopt(long, default_value = "1")]
     /// dependent on topology:{n}
-    /// 1 => fully connected: unused{n}
-    /// 2 => Erdoes Eenyi: connectivity{n}
-    /// 3 => Barabasi Albert mean degree{n}
+    /// fully connected: unused{n}
+    /// Erdoes Renyi: connectivity{n}
+    /// Barabasi Albert: mean degree{n}
+    /// Configuration Model: minimum degree (exponent: -2.5){n}
     topology_parameter: f32,
 
     #[structopt(long, default_value = "0.01")]
@@ -349,6 +351,10 @@ fn main() -> std::io::Result<()> {
         1 => TopologyModel::FullyConnected,
         2 => TopologyModel::ER(args.topology_parameter),
         3 => TopologyModel::BA(args.topology_parameter as f64, (2.*args.topology_parameter).ceil() as usize),
+        4 => {
+            let dd = DegreeDist::PowerLaw(args.num_agents as usize, args.topology_parameter, 2.5);
+            TopologyModel::CM(dd)
+        },
         _ => unreachable!(),
     };
 

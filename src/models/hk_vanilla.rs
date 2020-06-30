@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use rand::{Rng, SeedableRng};
-use rand_distr::{Normal, Pareto, Distribution, Binomial};
+use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
@@ -18,7 +18,7 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
 use petgraph::algo::connected_components;
-use super::graph::{size_largest_connected_component, build_er, build_ba};
+use super::graph::{size_largest_connected_component, build_er, build_ba, build_cm};
 
 use largedev::{MarkovChain, Model};
 
@@ -63,6 +63,23 @@ pub enum PopulationModel {
 }
 
 #[derive(PartialEq, Clone)]
+pub enum DegreeDist {
+    PowerLaw(usize, f32, f32)
+}
+
+impl DegreeDist {
+    fn gen(self, mut rng: &mut impl Rng) -> Vec<usize> {
+        match self{
+            DegreeDist::PowerLaw(n, min, exp) => {
+                let pareto = Pareto::new(min, exp - 1.).unwrap();
+                (0..n).map(|_| pareto.sample(&mut rng).floor() as usize).collect()
+            }
+        }
+
+    }
+}
+
+#[derive(PartialEq, Clone)]
 pub enum TopologyModel {
     /// every agent can interact with any other agent
     FullyConnected,
@@ -70,6 +87,8 @@ pub enum TopologyModel {
     ER(f32),
     /// Barabasi-Albert
     BA(f64, usize),
+    /// Configuration Model
+    CM(DegreeDist),
 }
 
 #[derive(Clone, Debug)]
@@ -303,13 +322,13 @@ impl HegselmannKrause {
     }
 
     fn gen_init_topology(&mut self) -> Option<Graph<usize, u32, Undirected>> {
-        match self.topology_model {
+        match &self.topology_model {
             TopologyModel::FullyConnected => None,
             TopologyModel::ER(c) => {
                 let mut g;
                 while {
                     let n = self.agents.len();
-                    g = build_er(n, c as f64, &mut self.rng);
+                    g = build_er(n, *c as f64, &mut self.rng);
                     size_largest_connected_component(&g).0 != 1
                 } {}
 
@@ -319,7 +338,14 @@ impl HegselmannKrause {
             },
             TopologyModel::BA(degree, m0) => {
                 let n = self.agents.len();
-                let g = build_ba(n, degree, m0, &mut self.rng);
+                let g = build_ba(n, *degree, *m0, &mut self.rng);
+
+                self.topology_idx = Some(g.node_indices().collect());
+
+                Some(g)
+            }
+            TopologyModel::CM(degree_dist) => {
+                let g = build_cm(move |r| degree_dist.clone().gen(r), &mut self.rng);
 
                 self.topology_idx = Some(g.node_indices().collect());
 
@@ -466,7 +492,8 @@ impl HegselmannKrause {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::ER(_) | TopologyModel::BA(_, _) => self.step_naive(),
+                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_)
+                    => self.step_naive(),
                 TopologyModel::FullyConnected => self.step_bisect(),
             }
         }
@@ -551,7 +578,8 @@ impl HegselmannKrause {
     pub fn sweep_synchronous(&mut self) {
         match self.topology_model {
             // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-            TopologyModel::ER(_) | TopologyModel::BA(_, _) => self.sweep_synchronous_naive(),
+            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_)
+                => self.sweep_synchronous_naive(),
             TopologyModel::FullyConnected => self.sweep_synchronous_bisect(),
         }
         self.time += 1;
