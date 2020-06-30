@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use rand::Rng;
+use rand::seq::SliceRandom;
 use rand_distr::{Binomial, Distribution};
 
 use petgraph::graph::{DiGraph, UnGraph, Graph, NodeIndex};
@@ -94,6 +95,50 @@ pub fn build_er(n: usize, c: f64, mut rng: &mut impl Rng) -> Graph<usize, u32, U
         if idx1 != idx2 && g.find_edge(node1, node2) == None {
             g.add_edge(node1, node2, 1);
             ctr += 1;
+        }
+    }
+
+    g
+}
+
+pub fn build_ba(n: usize, degree: f64, m0: usize, mut rng: &mut impl Rng) -> Graph<usize, u32, Undirected> {
+    let m = degree / 2.;
+    let mut g = Graph::new_undirected();
+    let nodes: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+
+    let mut weighted_node_list: Vec<NodeIndex<u32>> = Vec::new();
+
+    // starting core
+    for i in 0..m0 {
+        for j in 0..i {
+            let n1 = nodes[i];
+            let n2 = nodes[j];
+            g.add_edge(n1, n2, 1);
+            weighted_node_list.push(n1);
+            weighted_node_list.push(n2);
+        }
+    }
+
+    for i in nodes {
+        // add new node and connect to `m` nodes
+        for j in 0..m.ceil() as usize {
+            // if we have a fractional m, only add a node with the probability of the fractional part
+            if (m - j as f64) < 1. && rng.gen::<f64>() > m - j as f64 {
+                continue
+            }
+
+            let neighbor = loop {
+                let neighbor = *weighted_node_list.choose(&mut rng).unwrap();
+
+                // check for double edges and self loops
+                if neighbor != i && g.find_edge(neighbor, i) == None {
+                    break neighbor;
+                }
+            };
+
+            weighted_node_list.push(neighbor);
+            weighted_node_list.push(i);
+            g.add_edge(i, neighbor, 1);
         }
     }
 

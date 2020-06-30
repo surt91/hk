@@ -18,7 +18,7 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
 use petgraph::algo::connected_components;
-use super::graph::{size_largest_connected_component, build_er};
+use super::graph::{size_largest_connected_component, build_er, build_ba};
 
 use largedev::{MarkovChain, Model};
 
@@ -68,6 +68,8 @@ pub enum TopologyModel {
     FullyConnected,
     /// Erdos-Renyi
     ER(f32),
+    /// Barabasi-Albert
+    BA(f64, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -314,6 +316,14 @@ impl HegselmannKrause {
                 self.topology_idx = Some(g.node_indices().collect());
 
                 Some(g)
+            },
+            TopologyModel::BA(degree, m0) => {
+                let n = self.agents.len();
+                let g = build_ba(n, degree, m0, &mut self.rng);
+
+                self.topology_idx = Some(g.node_indices().collect());
+
+                Some(g)
             }
         }
     }
@@ -456,7 +466,7 @@ impl HegselmannKrause {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::ER(_) => self.step_naive(),
+                TopologyModel::ER(_) | TopologyModel::BA(_, _) => self.step_naive(),
                 TopologyModel::FullyConnected => self.step_bisect(),
             }
         }
@@ -541,7 +551,7 @@ impl HegselmannKrause {
     pub fn sweep_synchronous(&mut self) {
         match self.topology_model {
             // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-            TopologyModel::ER(_) => self.sweep_synchronous_naive(),
+            TopologyModel::ER(_) | TopologyModel::BA(_, _) => self.sweep_synchronous_naive(),
             TopologyModel::FullyConnected => self.sweep_synchronous_bisect(),
         }
         self.time += 1;

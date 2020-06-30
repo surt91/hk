@@ -70,10 +70,11 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3"])]
     /// topology:{n}
     /// 1 => fully connected{n}
-    /// 2 => erdoes renyi{n}
+    /// 2 => Erdoes Renyi{n}
+    /// 3 => Barabasi Albert{n}
     topology: u32,
 
     #[structopt(long, default_value = "1")]
@@ -346,6 +347,7 @@ fn main() -> std::io::Result<()> {
     let topology_model = match args.topology {
         1 => TopologyModel::FullyConnected,
         2 => TopologyModel::ER(args.topology_parameter),
+        3 => TopologyModel::BA(args.topology_parameter as f64, args.topology_parameter.ceil() as usize),
         _ => unreachable!(),
     };
 
