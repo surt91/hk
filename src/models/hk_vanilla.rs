@@ -18,7 +18,7 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
 use petgraph::algo::connected_components;
-use super::graph::{size_largest_connected_component, build_er, build_ba, build_cm};
+use super::graph::{size_largest_connected_component, build_er, build_ba, build_cm_biased};
 
 use largedev::{MarkovChain, Model};
 
@@ -345,7 +345,7 @@ impl HegselmannKrause {
                 Some(g)
             }
             TopologyModel::CM(degree_dist) => {
-                let g = build_cm(move |r| degree_dist.clone().gen(r), &mut self.rng);
+                let g = build_cm_biased(move |r| degree_dist.clone().gen(r), &mut self.rng);
 
                 self.topology_idx = Some(g.node_indices().collect());
 

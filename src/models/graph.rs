@@ -199,3 +199,61 @@ pub fn build_cm<R: Rng>(degree_vector_factory: impl Fn(&mut R) -> Vec<usize>, mu
         break g
     }
 }
+
+// we need a function which gives us a new degree vector given an rng
+// all parameters mus already be incorporated inside this factory
+// So, passing a closure is recommended
+pub fn build_cm_biased<R: Rng>(degree_vector_factory: impl Fn(&mut R) -> Vec<usize>, mut rng: &mut R) -> Graph<usize, u32, Undirected> {
+    'main: loop {
+        let degrees = degree_vector_factory(&mut rng);
+        let n = degrees.len();
+        let num_stubs: usize = degrees.iter().sum();
+
+        // if there is an uneven number of stubs, creation of a graph is impossible
+        if num_stubs % 2 != 0 {
+            continue
+        }
+
+        let mut g = Graph::new_undirected();
+        let nodes: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+
+        // generate stubs
+        let mut stubs = Vec::new();
+        for (i, &d) in degrees.iter().enumerate() {
+            for _ in 0..d {
+                stubs.push(i)
+            }
+        }
+
+        // connect stubs
+        while !stubs.is_empty() {
+            // draw two random stubs and swap the last element to preserve a contiguous vector
+            let n = stubs.len();
+            let i1 = rng.gen_range(0, n);
+            stubs.swap(i1, n-1);
+            let stub1 = stubs.pop().unwrap();
+
+            // draw up to 10 different stubs to try and avoid self loops and multi edges
+            // then abort to avoid infinite loops for the case that, e.g., the last two stubs are on the same node
+            let mut ctr = 0;
+            let stub2 = loop {
+                ctr += 1;
+                if ctr > 10 {
+                    continue 'main
+                }
+
+                let n = stubs.len();
+                let i2 = rng.gen_range(0, n);
+                let s2 = stubs[i2];
+                if s2 != stub1 && g.find_edge(nodes[stub1], nodes[s2]) == None {
+                    stubs.swap(i2, n-1);
+                    break stubs.pop().unwrap();
+                }
+            };
+
+            g.add_edge(nodes[stub1], nodes[stub2], 1);
+        }
+
+        break g
+    }
+}
