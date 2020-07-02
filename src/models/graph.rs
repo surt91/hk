@@ -214,6 +214,16 @@ pub fn build_cm_biased<R: Rng>(degree_vector_factory: impl Fn(&mut R) -> Vec<usi
             continue
         }
 
+        // if there are more stubs than 2*edges, the graph is too dense to work
+        if num_stubs > 2*n*(n-1) {
+            continue
+        }
+
+        // if there is a node with more stubs than neighbors, double edges are unavoidable
+        if *degrees.iter().max().unwrap() > n - 1 {
+            continue
+        }
+
         let mut g = Graph::new_undirected();
         let nodes: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
 
