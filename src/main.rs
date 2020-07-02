@@ -78,12 +78,12 @@ struct Opt {
     /// 4 => Configuration Model{n}
     topology: u32,
 
-    #[structopt(long, default_value = "1")]
+    #[structopt(long, default_value = "1", allow_hyphen_values = true)]
     /// dependent on topology:{n}
     /// fully connected: unused{n}
     /// Erdoes Renyi: connectivity{n}
     /// Barabasi Albert: mean degree{n}
-    /// Configuration Model: minimum degree (exponent: -2.5){n}
+    /// Configuration Model: exponent (must be negative){n}
     topology_parameter: f32,
 
     #[structopt(long, default_value = "0.01")]
@@ -352,7 +352,8 @@ fn main() -> std::io::Result<()> {
         2 => TopologyModel::ER(args.topology_parameter),
         3 => TopologyModel::BA(args.topology_parameter as f64, (2.*args.topology_parameter).ceil() as usize),
         4 => {
-            let dd = DegreeDist::PowerLaw(args.num_agents as usize, args.topology_parameter, 2.5);
+            assert!(args.topology_parameter < 0.);
+            let dd = DegreeDist::PowerLaw(args.num_agents as usize, 1., -args.topology_parameter);
             TopologyModel::CM(dd)
         },
         _ => unreachable!(),
