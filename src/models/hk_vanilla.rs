@@ -5,7 +5,9 @@
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::fmt;
+use std::path::Path;
 use std::fs::File;
+use std::io::BufWriter;
 use std::io::prelude::*;
 
 use rand::{Rng, SeedableRng};
@@ -813,6 +815,33 @@ impl HegselmannKrause {
         // TODO: save more information: size of the largest component, ...
         writeln!(file, "{} {} {}", num_components, lcc_num, lcc)
         // println!("n {}, c {}, p {}, m {}, num components: {:?}", n, c, p, m, components);
+    }
+
+    pub fn write_state_png(&self, path: &Path) -> std::io::Result<()> {
+        let file = File::create(path).unwrap();
+
+        let ref mut w = BufWriter::new(file);
+        let gradient = colorous::VIRIDIS;
+
+        let n = self.num_agents;
+        let m = (n as f64).sqrt() as u32;
+        assert!(m*m == n);
+
+        let mut encoder = png::Encoder::new(w, m, m); // Width is 2 pixels and height is 1.
+        encoder.set_color(png::ColorType::RGB);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+
+        let data: Vec<Vec<u8>> = self.agents.iter().map(|i| {
+            let gr = gradient.eval_continuous(i.opinion as f64);
+            vec![gr.r, gr.g, gr.b]
+        }).collect();
+
+        let data: Vec<u8> = data.into_iter().flatten().collect();
+
+        writer.write_image_data(&data).unwrap();
+
+        Ok(())
     }
 
     pub fn relax(&mut self) {

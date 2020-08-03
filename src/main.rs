@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
@@ -475,9 +476,22 @@ fn main() -> std::io::Result<()> {
                         hk.sweep();
                     }
 
-                    // if we only do one sample, we also save a detailed evoluti
+                    // if we only do one sample, we also save a detailed evolution
                     if args.samples == 1 {
                         hk.write_state(out_detailed.file())?;
+
+                        if ctr < 400 || ctr % 100 == 0 {
+                            std::fs::create_dir_all("pix")?;
+                            let name = format!("pix/test_{:04}.png", ctr);
+                            hk.write_state_png(&Path::new(&name))?;
+
+                            Command::new("mogrify")
+                                .arg("-scale")
+                                .arg("800%")
+                                .arg(&name)
+                                .spawn()
+                                .expect("upscaling failed");
+                        }
                     }
 
                     if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {

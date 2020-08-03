@@ -267,3 +267,60 @@ pub fn build_cm_biased<R: Rng>(degree_vector_factory: impl Fn(&mut R) -> Vec<usi
         break g
     }
 }
+
+pub fn build_lattice(n: usize, next_neighbors: usize) -> Graph<usize, u32, Undirected> {
+    let m = (n as f64).sqrt() as usize;
+    assert!(m*m == n);
+    let mut g = Graph::new_undirected();
+    let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+
+    assert!(next_neighbors >= 1);
+    assert!(next_neighbors <= 4);
+
+    for i in 0..m {
+        for j in 0..m {
+            let idx = i*m+j;
+            let node = node_array[idx];
+
+            // nearest neighbors
+            let bot = (idx + m) % n;
+            let right = i*m + (j+1) % m;
+
+            g.add_edge(node, node_array[bot], 1);
+            g.add_edge(node, node_array[right], 1);
+
+            // second nearest neighbors
+            if next_neighbors >= 2 {
+                let bl = (i+1)*m % n + (j-1) % m;
+                let br = (i+1)*m % n + (j+1) % m;
+
+                g.add_edge(node, node_array[bl], 1);
+                g.add_edge(node, node_array[br], 1);
+            }
+
+            // third nearest neighbors
+            if next_neighbors >= 3 {
+                let bb = (idx + 2*m) % n;
+                let rr = i*m + (j+2) % m;
+
+                g.add_edge(node, node_array[bb], 1);
+                g.add_edge(node, node_array[rr], 1);
+            }
+
+            // fourth nearest neighbors
+            if next_neighbors >= 4 {
+                let bbl = (i+2)*m % n + (j-1) % m;
+                let bbr = (i+2)*m % n + (j+1) % m;
+                let brr = (i+1)*m % n + (j+2) % m;
+                let bll = (i+1)*m % n + (j-2) % m;
+
+                g.add_edge(node, node_array[bbl], 1);
+                g.add_edge(node, node_array[bbr], 1);
+                g.add_edge(node, node_array[brr], 1);
+                g.add_edge(node, node_array[bll], 1);
+            }
+        }
+    }
+
+    g
+}
