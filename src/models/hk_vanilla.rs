@@ -18,7 +18,7 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
 use petgraph::algo::connected_components;
-use super::graph::{size_largest_connected_component, build_er, build_ba, build_cm_biased};
+use super::graph::{size_largest_connected_component, build_er, build_ba, build_cm, build_cm_biased, build_lattice};
 
 use largedev::{MarkovChain, Model};
 
@@ -87,8 +87,12 @@ pub enum TopologyModel {
     ER(f32),
     /// Barabasi-Albert
     BA(f64, usize),
+    /// biased Configuration Model
+    CMBiased(DegreeDist),
     /// Configuration Model
     CM(DegreeDist),
+    /// square lattice
+    SquareLattice(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -325,12 +329,13 @@ impl HegselmannKrause {
         match &self.topology_model {
             TopologyModel::FullyConnected => None,
             TopologyModel::ER(c) => {
-                let mut g;
-                while {
                     let n = self.agents.len();
-                    g = build_er(n, *c as f64, &mut self.rng);
-                    size_largest_connected_component(&g).0 != 1
-                } {}
+                let g = loop {
+                    let tmp = build_er(n, *c as f64, &mut self.rng);
+                    if size_largest_connected_component(&tmp).0 == 1 {
+                        break tmp
+                    }
+                };
 
                 self.topology_idx = Some(g.node_indices().collect());
 
@@ -343,14 +348,39 @@ impl HegselmannKrause {
                 self.topology_idx = Some(g.node_indices().collect());
 
                 Some(g)
+            },
+            TopologyModel::CMBiased(degree_dist) => {
+                let g = loop {
+                    let tmp = build_cm_biased(move |r| degree_dist.clone().gen(r), &mut self.rng);
+                    if size_largest_connected_component(&tmp).0 == 1 {
+                        break tmp
             }
+                };
+
+                self.topology_idx = Some(g.node_indices().collect());
+
+                Some(g)
+            },
             TopologyModel::CM(degree_dist) => {
-                let g = build_cm_biased(move |r| degree_dist.clone().gen(r), &mut self.rng);
+                let g = loop {
+                    let tmp = build_cm(move |r| degree_dist.clone().gen(r), &mut self.rng);
+                    if size_largest_connected_component(&tmp).0 == 1 {
+                        break tmp
+                    }
+                };
 
                 self.topology_idx = Some(g.node_indices().collect());
 
                 Some(g)
             }
+            TopologyModel::SquareLattice(next_neighbors) => {
+                let n = self.agents.len();
+                let g = build_lattice(n, *next_neighbors);
+
+                self.topology_idx = Some(g.node_indices().collect());
+
+                Some(g)
+            },
         }
     }
 
@@ -492,7 +522,7 @@ impl HegselmannKrause {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_)
+                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_)
                     => self.step_naive(),
                 TopologyModel::FullyConnected => self.step_bisect(),
             }
@@ -578,7 +608,7 @@ impl HegselmannKrause {
     pub fn sweep_synchronous(&mut self) {
         match self.topology_model {
             // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_)
+            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_)
                 => self.sweep_synchronous_naive(),
             TopologyModel::FullyConnected => self.sweep_synchronous_bisect(),
         }

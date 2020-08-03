@@ -70,12 +70,14 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6"])]
     /// topology:{n}
     /// 1 => fully connected{n}
     /// 2 => Erdoes Renyi{n}
     /// 3 => Barabasi Albert{n}
-    /// 4 => Configuration Model{n}
+    /// 4 => biased Configuration Model{n}
+    /// 5 => correct Configuration Model{n}
+    /// 6 => periodic square lattice (num_agents needs to be a perfect square){n}
     topology: u32,
 
     #[structopt(long, default_value = "1", allow_hyphen_values = true)]
@@ -84,7 +86,17 @@ struct Opt {
     /// Erdoes Renyi: connectivity{n}
     /// Barabasi Albert: mean degree{n}
     /// Configuration Model: exponent (must be negative){n}
+    /// square lattice: unused{n}
     topology_parameter: f32,
+
+    #[structopt(long, default_value = "1")]
+    /// dependent on topology:{n}
+    /// fully connected: unused{n}
+    /// Erdoes Renyi: unused{n}
+    /// Barabasi Albert: unused{n}
+    /// Configuration Model: minimum degree{n}
+    /// square lattice: unused{n}
+    topology_parameter2: f32,
 
     #[structopt(long, default_value = "0.01")]
     /// weight of cost
@@ -353,9 +365,15 @@ fn main() -> std::io::Result<()> {
         3 => TopologyModel::BA(args.topology_parameter as f64, (2.*args.topology_parameter).ceil() as usize),
         4 => {
             assert!(args.topology_parameter < 0.);
-            let dd = DegreeDist::PowerLaw(args.num_agents as usize, 1., -args.topology_parameter);
+            let dd = DegreeDist::PowerLaw(args.num_agents as usize, args.topology_parameter2, -args.topology_parameter);
+            TopologyModel::CMBiased(dd)
+        },
+        5 => {
+            assert!(args.topology_parameter < 0.);
+            let dd = DegreeDist::PowerLaw(args.num_agents as usize, args.topology_parameter2, -args.topology_parameter);
             TopologyModel::CM(dd)
         },
+        6 => TopologyModel::SquareLattice(args.topology_parameter as usize),
         _ => unreachable!(),
     };
 
