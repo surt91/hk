@@ -275,7 +275,7 @@ pub fn build_lattice(n: usize, next_neighbors: usize) -> Graph<usize, u32, Undir
     let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
 
     assert!(next_neighbors >= 1);
-    assert!(next_neighbors <= 4);
+    assert!(next_neighbors <= 6);
 
     for i in 0..m {
         for j in 0..m {
@@ -318,6 +318,24 @@ pub fn build_lattice(n: usize, next_neighbors: usize) -> Graph<usize, u32, Undir
                 g.add_edge(node, node_array[bbr], 1);
                 g.add_edge(node, node_array[brr], 1);
                 g.add_edge(node, node_array[bll], 1);
+            }
+
+            // fifth nearest neighbors
+            if next_neighbors >= 5 {
+                let bbll = (i+2)*m % n + (j-2) % m;
+                let bbrr = (i+2)*m % n + (j+2) % m;
+
+                g.add_edge(node, node_array[bbll], 1);
+                g.add_edge(node, node_array[bbrr], 1);
+            }
+
+            // sixth nearest neighbors
+            if next_neighbors >= 6 {
+                let bbb = (i+3)*m % n + j % m;
+                let rrr = i*m % n + (j+3) % m;
+
+                g.add_edge(node, node_array[bbb], 1);
+                g.add_edge(node, node_array[rrr], 1);
             }
         }
     }
