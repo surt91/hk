@@ -331,7 +331,7 @@ impl HegselmannKrause {
         match &self.topology_model {
             TopologyModel::FullyConnected => None,
             TopologyModel::ER(c) => {
-                    let n = self.agents.len();
+                let n = self.agents.len();
                 let g = loop {
                     let tmp = build_er(n, *c as f64, &mut self.rng);
                     if size_largest_connected_component(&tmp).0 == 1 {
@@ -356,7 +356,7 @@ impl HegselmannKrause {
                     let tmp = build_cm_biased(move |r| degree_dist.clone().gen(r), &mut self.rng);
                     if size_largest_connected_component(&tmp).0 == 1 {
                         break tmp
-            }
+                    }
                 };
 
                 self.topology_idx = Some(g.node_indices().collect());
