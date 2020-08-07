@@ -15,6 +15,10 @@ ordered-float = "1.0"
 structopt = "0.3"
 petgraph = "0.4"
 
+png = "*"
+colorous = "*"
+
+
 git-version = "*"
 
 largedev = { git = "https://github.com/surt91/largedev" }
