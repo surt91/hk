@@ -752,7 +752,7 @@ impl HegselmannKrause {
     }
 
     pub fn write_density(&self, file: &mut File) -> std::io::Result<()> {
-        let string_list = self.dynamic_density.iter()
+            let string_list = self.dynamic_density.iter()
             .map(|x| x.iter().join(" "))
             .join("\n");
         writeln!(file, "{}", string_list)
@@ -786,17 +786,26 @@ impl HegselmannKrause {
     }
 
     pub fn write_gp_with_resources(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {
+        let t_max = 400;
+
         writeln!(file, "set terminal pngcairo")?;
         writeln!(file, "set output '{}.png'", outfilename)?;
         writeln!(file, "set xl 't'")?;
         writeln!(file, "set yl 'x_i'")?;
-        writeln!(file, "set xr [0:40]")?;
+        writeln!(file, "set xr [0:{}]", t_max)?;
         writeln!(file, "set yr [0:1]")?;
-        writeln!(file, "p \\")?;
 
-        let string_list = self.agents.iter().take(100).enumerate()
-            .map(|(n, a)| format!("  '<zcat {}' u 0:{} w l lc {} not, \\\n", outfilename, n+1, if a.resources < 1e-4 {3} else {1}))
-            .join(" ");
+        // let l = (self.num_agents as f64).sqrt() as usize;
+        // fn n2color(num: usize, l: usize) -> u8 {
+        //     (num as f64 / l as f64 * 255.) as u8
+        // }
+
+        // let string_list = self.agents.iter().take(100).enumerate()
+        //     //.map(|(n, a)| format!("  '<zcat {}' u 0:{} w l lc {} not, \\\n", outfilename, n+1, if a.resources < 1e-4 {3} else {1}))
+        //     .map(|(n, _a)| format!("  '<zcat {}' u 0:{} w l lc rgb \"#{:02x}{:02x}{:02x}\" not, \\\n", outfilename, n+1, n2color(n%l, l), n2color(n/l, l), 255-n2color(n%l, l)-n2color(n/l, l)))
+        //     .join(" ");
+
+        let string_list = format!("p for [i=1:100] '<zcat {} | head -n {}' u 0:i w l lc 8 not", outfilename, t_max);
 
         write!(file, "{}", string_list)
     }
