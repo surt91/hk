@@ -342,3 +342,25 @@ pub fn build_lattice(n: usize, next_neighbors: usize) -> Graph<usize, u32, Undir
 
     g
 }
+
+pub fn build_ws(n: usize, k: usize, p: f64, mut rng: &mut impl Rng) -> Graph<usize, u32, Undirected> {
+    let mut g = Graph::new_undirected();
+    let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+    // connect every node to its k right neigbors (periodic)
+    for i in 0..n {
+        for j in 1..=k {
+            // with a probability of p, do not wire to the neighbor, but to a random node
+            if rng.gen::<f64>() < p {
+                // To avoid multi- or self-loops, we just have to avoid the k left and right
+                // neighbors and the node itself. Therefore calculate the random number a
+                // bit clever (note that the range is exclusive the right bound)
+                let m = rng.gen_range(k+1, n-k);
+                g.add_edge(node_array[i], node_array[(i+m) % n], 1);
+            } else {
+                g.add_edge(node_array[i], node_array[(i+j) % n], 1);
+            }
+        }
+    }
+
+    g
+}

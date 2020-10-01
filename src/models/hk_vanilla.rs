@@ -20,7 +20,15 @@ use ordered_float::OrderedFloat;
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
 use petgraph::algo::connected_components;
-use super::graph::{size_largest_connected_component, build_er, build_ba, build_cm, build_cm_biased, build_lattice};
+use super::graph::{
+    size_largest_connected_component,
+    build_er,
+    build_ba,
+    build_cm,
+    build_cm_biased,
+    build_lattice,
+    build_ws
+};
 
 use largedev::{MarkovChain, Model};
 
@@ -95,6 +103,8 @@ pub enum TopologyModel {
     CM(DegreeDist),
     /// square lattice
     SquareLattice(usize),
+    /// Watts Strogatz
+    WS(usize, f64),
 }
 
 #[derive(Clone, Debug)]
@@ -374,10 +384,18 @@ impl HegselmannKrause {
                 self.topology_idx = Some(g.node_indices().collect());
 
                 Some(g)
-            }
+            },
             TopologyModel::SquareLattice(next_neighbors) => {
                 let n = self.agents.len();
                 let g = build_lattice(n, *next_neighbors);
+
+                self.topology_idx = Some(g.node_indices().collect());
+
+                Some(g)
+            },
+            TopologyModel::WS(neighbors, rewiring) => {
+                let n = self.agents.len();
+                let g = build_ws(n, *neighbors, *rewiring, &mut self.rng);
 
                 self.topology_idx = Some(g.node_indices().collect());
 
@@ -524,7 +542,7 @@ impl HegselmannKrause {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_)
+                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _)
                     => self.step_naive(),
                 TopologyModel::FullyConnected => self.step_bisect(),
             }
@@ -610,7 +628,7 @@ impl HegselmannKrause {
     pub fn sweep_synchronous(&mut self) {
         match self.topology_model {
             // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_)
+            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _)
                 => self.sweep_synchronous_naive(),
             TopologyModel::FullyConnected => self.sweep_synchronous_bisect(),
         }
