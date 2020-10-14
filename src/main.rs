@@ -380,6 +380,7 @@ fn main() -> std::io::Result<()> {
         },
         6 => TopologyModel::SquareLattice(args.topology_parameter as usize),
         7 => TopologyModel::WS(args.topology_parameter as usize, args.topology_parameter2 as f64),
+        8 => TopologyModel::WSlat(args.topology_parameter as usize, args.topology_parameter2 as f64),
         _ => unreachable!(),
     };
 
