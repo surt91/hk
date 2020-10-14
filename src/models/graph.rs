@@ -343,7 +343,7 @@ pub fn build_lattice(n: usize, next_neighbors: usize) -> Graph<usize, u32, Undir
     g
 }
 
-pub fn build_ws(n: usize, k: usize, p: f64, mut rng: &mut impl Rng) -> Graph<usize, u32, Undirected> {
+pub fn build_ws(n: usize, k: usize, p: f64, rng: &mut impl Rng) -> Graph<usize, u32, Undirected> {
     let mut g = Graph::new_undirected();
     let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
     // connect every node to its k right neigbors (periodic)
@@ -359,6 +359,27 @@ pub fn build_ws(n: usize, k: usize, p: f64, mut rng: &mut impl Rng) -> Graph<usi
             } else {
                 g.add_edge(node_array[i], node_array[(i+j) % n], 1);
             }
+        }
+    }
+
+    g
+}
+
+pub fn build_ws_lattice(n: usize, k: usize, p: f64, rng: &mut impl Rng) -> Graph<usize, u32, Undirected> {
+    let mut g = build_lattice(n, k);
+    let node_array: Vec<NodeIndex<u32>> = g.node_indices().collect();
+    // iterate over all edges
+    // with a probability of p, rewire it, avoiding self- and multi-edges
+    for e in g.edge_indices() {
+        if rng.gen::<f64>() < p {
+            let (u, v) = g.edge_endpoints(e).unwrap();
+            g.remove_edge(e);
+            let mut vp;
+            while {
+                vp = node_array[rng.gen_range(0, n)];
+                g.contains_edge(u, vp) && vp != u
+            } {}
+            g.add_edge(u, vp, 1);
         }
     }
 
