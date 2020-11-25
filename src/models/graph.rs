@@ -385,3 +385,89 @@ pub fn build_ws_lattice(n: usize, k: usize, p: f64, rng: &mut impl Rng) -> Graph
 
     g
 }
+
+pub fn build_ba_with_clustering(
+    n: usize,
+    degree: f64,
+    m0: usize,
+    mt: f64,
+    mut rng: &mut impl Rng
+) -> Graph<usize, u32, Undirected> {
+    let m = degree / 2.;
+    let pt = mt / (m-1.);
+    let mut g = Graph::new_undirected();
+    let nodes: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+
+    // we only want integer m
+    assert!(m - m.floor() < 1e-5 && m > 0.);
+
+    let mut weighted_node_list: Vec<NodeIndex<u32>> = Vec::new();
+
+    // starting core
+    for i in 0..m0 {
+        for j in 0..i {
+            let n1 = nodes[i];
+            let n2 = nodes[j];
+            g.add_edge(n1, n2, 1);
+            weighted_node_list.push(n1);
+            weighted_node_list.push(n2);
+        }
+    }
+
+    // TODO make a `preferential_attachment` function to perform PA here twice and for the vanilla BA
+
+    for &i in nodes.iter().skip(m0) {
+        // add new node and connect to `m` nodes
+        for _ in 0..m.ceil() as usize {
+            // Preferential attachment step
+
+            let neighbor = loop {
+                let neighbor = *weighted_node_list.choose(&mut rng).unwrap();
+
+                // check for double edges and self loops
+                if neighbor != i && g.find_edge(neighbor, i) == None {
+                    break neighbor;
+                }
+            };
+
+            weighted_node_list.push(neighbor);
+            weighted_node_list.push(i);
+            g.add_edge(i, neighbor, 1);
+
+            // Triad formation step
+            if pt < rng.gen::<f64>() {
+                // connect `i` to a neighbor of `neighbor` (uniformly, apparently)
+                let choices: Vec<NodeIndex<u32>> = g.neighbors(neighbor)
+                    .filter(
+                        |&u| g.find_edge(u, i).is_none()
+                    )
+                    .collect();
+
+                // if all neighbors of `neighbor` are already neighbors of `i`
+                // perform a preferential attachment step instead
+                if choices.is_empty() {
+                    let neighbor = loop {
+                        let neighbor = *weighted_node_list.choose(&mut rng).unwrap();
+
+                        // check for double edges and self loops
+                        if neighbor != i && g.find_edge(neighbor, i) == None {
+                            break neighbor;
+                        }
+                    };
+
+                    weighted_node_list.push(neighbor);
+                    weighted_node_list.push(i);
+                    g.add_edge(i, neighbor, 1);
+                } else {
+                    let w = *choices.choose(&mut rng).unwrap();
+
+                    weighted_node_list.push(w);
+                    weighted_node_list.push(i);
+                    g.add_edge(i, w, 1);
+                }
+            }
+        }
+    }
+
+    g
+}
