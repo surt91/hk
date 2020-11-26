@@ -71,7 +71,7 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9"])]
     /// topology:{n}
     /// 1 => fully connected{n}
     /// 2 => Erdoes Renyi{n}
@@ -81,6 +81,7 @@ struct Opt {
     /// 6 => periodic square lattice (num_agents needs to be a perfect square){n}
     /// 7 => Watts-Strogatz small world network on a ring{n}
     /// 8 => Watts-Strogatz small world network on a square lattice{n}
+    /// 9 => BA+Triangles{n}
     topology: u32,
 
     #[structopt(long, default_value = "1", allow_hyphen_values = true)]
@@ -91,6 +92,7 @@ struct Opt {
     /// Configuration Model: exponent (must be negative){n}
     /// square lattice: n-th nearest neighbors{n}
     /// Watts Strogatz: n-th nearest neighbors{n}
+    /// BA+Triangles: m{n}
     topology_parameter: f32,
 
     #[structopt(long, default_value = "1")]
@@ -101,6 +103,7 @@ struct Opt {
     /// Configuration Model: minimum degree{n}
     /// square lattice: unused{n}
     /// Watts Strogatz: rewiring probability{n}
+    /// BA+Triangles: m_t{n}
     topology_parameter2: f32,
 
     #[structopt(long, default_value = "0.01")]
@@ -381,6 +384,7 @@ fn main() -> std::io::Result<()> {
         6 => TopologyModel::SquareLattice(args.topology_parameter as usize),
         7 => TopologyModel::WS(args.topology_parameter as usize, args.topology_parameter2 as f64),
         8 => TopologyModel::WSlat(args.topology_parameter as usize, args.topology_parameter2 as f64),
+        9 => TopologyModel::BAT(args.topology_parameter as usize, args.topology_parameter2 as f64),
         _ => unreachable!(),
     };
 

@@ -28,7 +28,8 @@ use super::graph::{
     build_cm_biased,
     build_lattice,
     build_ws,
-    build_ws_lattice
+    build_ws_lattice,
+    build_ba_with_clustering,
 };
 
 use largedev::{MarkovChain, Model};
@@ -108,6 +109,8 @@ pub enum TopologyModel {
     WS(usize, f64),
     /// Watts Strogatz on a square lattice
     WSlat(usize, f64),
+    /// BA + Triangles
+    BAT(usize, f64),
 }
 
 #[derive(Clone, Debug)]
@@ -424,6 +427,15 @@ impl HegselmannKrause {
 
                 Some(g)
             },
+            TopologyModel::BAT(degree, mt) => {
+                let n = self.agents.len();
+                let m0 = degree * 2 + mt.ceil() as usize;
+                let g = build_ba_with_clustering(n, *degree, m0, *mt, &mut self.rng);
+
+                self.topology_idx = Some(g.node_indices().collect());
+
+                Some(g)
+            },
         }
     }
 
@@ -565,7 +577,7 @@ impl HegselmannKrause {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _) | TopologyModel::WSlat(_, _)
+                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _) | TopologyModel::WSlat(_, _) | TopologyModel::BAT(_, _)
                     => self.step_naive(),
                 TopologyModel::FullyConnected => self.step_bisect(),
             }
@@ -651,7 +663,7 @@ impl HegselmannKrause {
     pub fn sweep_synchronous(&mut self) {
         match self.topology_model {
             // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _) | TopologyModel::WSlat(_, _)
+            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _) | TopologyModel::WSlat(_, _) | TopologyModel::BAT(_, _)
                 => self.sweep_synchronous_naive(),
             TopologyModel::FullyConnected => self.sweep_synchronous_bisect(),
         }

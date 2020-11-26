@@ -388,18 +388,15 @@ pub fn build_ws_lattice(n: usize, k: usize, p: f64, rng: &mut impl Rng) -> Graph
 
 pub fn build_ba_with_clustering(
     n: usize,
-    degree: f64,
+    degree: usize,
     m0: usize,
     mt: f64,
     mut rng: &mut impl Rng
 ) -> Graph<usize, u32, Undirected> {
-    let m = degree / 2.;
-    let pt = mt / (m-1.);
+    let m = degree / 2;
+    let pt = mt / (m as f64 - 1.);
     let mut g = Graph::new_undirected();
     let nodes: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
-
-    // we only want integer m
-    assert!(m - m.floor() < 1e-5 && m > 0.);
 
     let mut weighted_node_list: Vec<NodeIndex<u32>> = Vec::new();
 
@@ -418,7 +415,7 @@ pub fn build_ba_with_clustering(
 
     for &i in nodes.iter().skip(m0) {
         // add new node and connect to `m` nodes
-        for _ in 0..m.ceil() as usize {
+        for _ in 0..m {
             // Preferential attachment step
 
             let neighbor = loop {
