@@ -605,7 +605,31 @@ impl HegselmannKrause {
                             count += 1;
                         }
                 }
-                TopologyRealization::Hypergraph(g) => unimplemented!(),
+                TopologyRealization::Hypergraph(g) => {
+                    'outer: for e in &g.edge_nodes {
+                        let mut avg_opinion = 0.;
+                        let mut num_neigh = 0;
+                        for n in g.factor_graph.neighbors(*e) {
+                            // also i will be a neighbor of itself
+                            let neighbor = &self.agents[g.factor_graph[n]];
+                            if (i.opinion - neighbor.opinion).abs() > i.tolerance {
+                                continue 'outer;
+                            }
+                            avg_opinion += neighbor.opinion;
+                            num_neigh += 1;
+                        }
+
+                        // if all nodes of the hyperedge are compatible (otherwise we would have continued above)
+                        // `i` takes the average opinion of this hyperedge into consideration
+                        tmp += avg_opinion / num_neigh as f32;
+                        count += 1
+                    }
+                    // if there are no compatible edges, change nothing (and avoid dividing by zero)
+                    if count == 0 {
+                        count = 1;
+                        tmp = i.opinion;
+                    }
+                },
             };
 
             tmp /= count as f32;
