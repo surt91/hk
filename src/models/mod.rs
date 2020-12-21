@@ -2,6 +2,7 @@ mod hk_vanilla;
 mod hk_lorenz;
 mod hk_lorenz_singleupdate;
 pub mod graph;
+pub mod hypergraph;
 
 mod simulated_annealing;
 mod local_simulated_annealing;

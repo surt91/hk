@@ -31,6 +31,10 @@ use super::graph::{
     build_ws_lattice,
     build_ba_with_clustering,
 };
+use super::hypergraph::{
+    Hypergraph,
+    build_hyper_uniform_er,
+};
 
 use largedev::{MarkovChain, Model};
 
@@ -111,6 +115,13 @@ pub enum TopologyModel {
     WSlat(usize, f64),
     /// BA + Triangles
     BAT(usize, f64),
+}
+
+#[derive(Clone, Debug)]
+pub enum TopologyRealization {
+    Graph(Graph<usize, u32, Undirected>),
+    Hypergraph(Hypergraph),
+    None
 }
 
 #[derive(Clone, Debug)]
@@ -202,8 +213,7 @@ impl HegselmannKrauseBuilder {
             num_agents: self.num_agents,
             agents: agents.clone(),
             time: 0,
-            topology: None,
-            topology_idx: None,
+            topology: TopologyRealization::None,
             cost_model: self.cost_model.clone(),
             resource_model: self.resource_model.clone(),
             population_model: self.population_model.clone(),
@@ -234,8 +244,7 @@ pub struct HegselmannKrause {
 
     /// topology of the possible interaction between agents
     /// None means fully connected
-    topology: Option<Graph<usize, u32, Undirected>>,
-    topology_idx: Option<Vec<NodeIndex>>,
+    topology: TopologyRealization,
 
     pub cost_model: CostModel,
     resource_model: ResourceModel,
@@ -343,9 +352,9 @@ impl HegselmannKrause {
         }
     }
 
-    fn gen_init_topology(&mut self) -> Option<Graph<usize, u32, Undirected>> {
+    fn gen_init_topology(&mut self) -> TopologyRealization {
         match &self.topology_model {
-            TopologyModel::FullyConnected => None,
+            TopologyModel::FullyConnected => TopologyRealization::None,
             TopologyModel::ER(c) => {
                 let n = self.agents.len();
                 let g = loop {
@@ -355,17 +364,13 @@ impl HegselmannKrause {
                     }
                 };
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
             TopologyModel::BA(degree, m0) => {
                 let n = self.agents.len();
                 let g = build_ba(n, *degree, *m0, &mut self.rng);
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
             TopologyModel::CMBiased(degree_dist) => {
                 let g = loop {
@@ -375,9 +380,7 @@ impl HegselmannKrause {
                     }
                 };
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
             TopologyModel::CM(degree_dist) => {
                 let g = loop {
@@ -387,17 +390,13 @@ impl HegselmannKrause {
                     }
                 };
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
             TopologyModel::SquareLattice(next_neighbors) => {
                 let n = self.agents.len();
                 let g = build_lattice(n, *next_neighbors);
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
             TopologyModel::WS(neighbors, rewiring) => {
                 let n = self.agents.len();
@@ -409,9 +408,7 @@ impl HegselmannKrause {
                     }
                 };
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
             TopologyModel::WSlat(neighbors, rewiring) => {
                 let n = self.agents.len();
@@ -423,18 +420,14 @@ impl HegselmannKrause {
                     }
                 };
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
             TopologyModel::BAT(degree, mt) => {
                 let n = self.agents.len();
-                let m0 = degree * 2 + mt.ceil() as usize;
+                let m0 = (*degree as f64 / 2.).ceil() as usize + mt.ceil() as usize;
                 let g = build_ba_with_clustering(n, *degree, m0, *mt, &mut self.rng);
 
-                self.topology_idx = Some(g.node_indices().collect());
-
-                Some(g)
+                TopologyRealization::Graph(g)
             },
         }
     }
@@ -523,18 +516,21 @@ impl HegselmannKrause {
         let idx = self.rng.gen_range(0, self.num_agents) as usize;
         let i = &self.agents[idx];
 
-        let (sum, count) = if let (Some(g), Some(nodes)) = (self.topology.as_ref(), self.topology_idx.as_ref()) {
-            // iterate over all neighbors and yourself to find all interaction partners
-            g.neighbors(nodes[idx])
-                .chain(std::iter::once(nodes[idx]))
-                .map(|j| self.agents[g[j]].opinion)
-                .filter(|j| (i.opinion - j).abs() < i.tolerance)
-                .fold((0., 0), |(sum, count), i| (sum + i, count + 1))
-        } else {
-            self.agents.iter()
-                .map(|j| j.opinion)
-                .filter(|j| (i.opinion - j).abs() < i.tolerance)
-                .fold((0., 0), |(sum, count), i| (sum + i, count + 1))
+        let (sum, count) = match &self.topology {
+            TopologyRealization::None =>
+                self.agents.iter()
+                    .map(|j| j.opinion)
+                    .filter(|j| (i.opinion - j).abs() < i.tolerance)
+                    .fold((0., 0), |(sum, count), i| (sum + i, count + 1)),
+            TopologyRealization::Graph(g) => {
+                let nodes: Vec<NodeIndex<u32>> = g.node_indices().collect();
+                g.neighbors(nodes[idx])
+                    .chain(std::iter::once(nodes[idx]))
+                    .map(|j| self.agents[g[j]].opinion)
+                    .filter(|j| (i.opinion - j).abs() < i.tolerance)
+                    .fold((0., 0), |(sum, count), i| (sum + i, count + 1))
+            }
+            TopologyRealization::Hypergraph(g) => unimplemented!(),
         };
 
         let new_opinion = sum / count as f32;
@@ -591,19 +587,23 @@ impl HegselmannKrause {
             let mut tmp = 0.;
             let mut count = 0;
 
-            if let (Some(g), Some(nodes)) = (self.topology.as_ref(), self.topology_idx.as_ref()) {
-                // iterate over all neighbors and yourself (without yourself there could be infinite loops of two flipping agents)
-                for j in g.neighbors(nodes[idx]).chain(std::iter::once(nodes[idx]))
-                       .filter(|j| (i.opinion - self.agents[g[*j]].opinion).abs() < i.tolerance) {
-                    tmp += self.agents[g[j]].opinion;
-                    count += 1;
-                }
-            } else {
-                for j in self.agents.iter()
+            match &self.topology {
+                TopologyRealization::None => {
+                    for j in self.agents.iter()
                         .filter(|j| (i.opinion - j.opinion).abs() < i.tolerance) {
-                    tmp += j.opinion;
-                    count += 1;
+                            tmp += j.opinion;
+                            count += 1;
+                        }
+                },
+                TopologyRealization::Graph(g) => {
+                    let nodes: Vec<NodeIndex<u32>> = g.node_indices().collect();
+                    for j in g.neighbors(nodes[idx]).chain(std::iter::once(nodes[idx]))
+                        .filter(|j| (i.opinion - self.agents[g[*j]].opinion).abs() < i.tolerance) {
+                            tmp += self.agents[g[j]].opinion;
+                            count += 1;
+                        }
                 }
+                TopologyRealization::Hypergraph(g) => unimplemented!(),
             };
 
             tmp /= count as f32;
@@ -864,18 +864,20 @@ impl HegselmannKrause {
     }
 
     pub fn write_topology_info(&self, file: &mut File) -> std::io::Result<()> {
-        let (num_components, lcc_num, lcc) =
-            if let Some(g) = &self.topology {
+        let (num_components, lcc_num, lcc, mean_degree) = match &self.topology {
+            TopologyRealization::None => (1, 1, self.num_agents as usize, self.num_agents as f64 - 1.),
+            TopologyRealization::Graph(g) => {
                 let (num, size) = size_largest_connected_component(&g);
 
-                (connected_components(&g), num, size)
-            } else {
-                // fully connected
-                (1, 1, self.num_agents as usize)
-            };
+                let d = 2. * g.edge_count() as f64 / g.node_count() as f64;
+
+                (connected_components(&g), num, size, d)
+            },
+            TopologyRealization::Hypergraph(g) => unimplemented!(),
+        };
 
         // TODO: save more information: size of the largest component, ...
-        writeln!(file, "{} {} {}", num_components, lcc_num, lcc)
+        writeln!(file, "{} {} {} {}", num_components, lcc_num, lcc, mean_degree)
         // println!("n {}, c {}, p {}, m {}, num components: {:?}", n, c, p, m, components);
     }
 
