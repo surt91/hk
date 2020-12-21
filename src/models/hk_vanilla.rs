@@ -15,6 +15,8 @@ use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
+use inline_python::{python,Context};
+
 use ordered_float::OrderedFloat;
 
 use petgraph::graph::{Graph, NodeIndex};
@@ -905,6 +907,71 @@ impl HegselmannKrause {
 
         writer.write_image_data(&data).unwrap();
 
+        Ok(())
+    }
+
+    pub fn write_graph_png(&self, path: &Path, py: &mut Context, active: bool) -> std::io::Result<()> {
+        let gradient = colorous::VIRIDIS;
+
+        let colors: Vec<Vec<f64>> = self.agents.iter().map(|i| {
+            let gr = gradient.eval_continuous(i.opinion as f64);
+            vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
+        }).collect();
+
+        let out = path.to_str().unwrap();
+
+        if let TopologyRealization::Graph(g) = &self.topology {
+            let edgelist: Vec<Vec<usize>> = if active {
+                g.edge_indices()
+                    .map(|e| {
+                        let (u, v) = g.edge_endpoints(e).unwrap();
+                        vec![u.index(), v.index()]
+                    })
+                    .filter(|v| (self.agents[v[0]].opinion - self.agents[v[1]].opinion).abs() <= self.agents[v[0]].tolerance)
+                    .collect()
+            } else {
+                g.edge_indices()
+                    .map(|e| {
+                        let (u, v) = g.edge_endpoints(e).unwrap();
+                        vec![u.index(), v.index()]
+                    })
+                    .collect()
+            };
+
+            py.run(python! {
+                import graph_tool.all as gt
+
+                g = None
+                if g is None:
+                    g = gt.Graph(directed=False)
+                    g.add_edge_list('edgelist)
+                    pos = gt.sfdp_layout(g)
+                else:
+                    g.clear_edges()
+                    g.add_edge_list('edgelist)
+
+                colors = g.new_vp("vector<double>")
+                for n, c in enumerate('colors):
+                    colors[n] = c
+
+                gt.graph_draw(
+                    g,
+                    pos=pos,
+                    vertex_shape="square",
+                    vertex_size=10,
+                    vertex_fill_color=colors,
+                    edge_color=[0.7, 0.7, 0.7, 0.5],
+                    bg_color=[1., 1., 1., 1.],
+                    output_size=(1920, 1920),
+                    adjust_aspect=False,
+                    output='out,
+                )
+
+                // vb, eb = gt.betweenness(g)
+                // with open("betweenness.dat", "a") as f:
+                //     f.write(" ".join(vb.a))
+            });
+        }
         Ok(())
     }
 
