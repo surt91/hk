@@ -394,9 +394,11 @@ pub fn build_ba_with_clustering(
     mut rng: &mut impl Rng
 ) -> Graph<usize, u32, Undirected> {
     let m = degree / 2;
-    let pt = mt / (m as f64 - 1.);
+    let pt = mt / (m as f64);
     let mut g = Graph::new_undirected();
     let nodes: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+
+    // println!("{} {} {} {}", m , m0, mt, pt);
 
     let mut weighted_node_list: Vec<NodeIndex<u32>> = Vec::new();
 
@@ -415,10 +417,17 @@ pub fn build_ba_with_clustering(
 
     for &i in nodes.iter().skip(m0) {
         // add new node and connect to `m` nodes
-        for _ in 0..m {
+        'outer: for _ in 0..m {
             // Preferential attachment step
 
+            let mut tries = 0;
             let neighbor = loop {
+                tries += 1;
+                // if there are more triad steps than expected, we can get to a point, where
+                // only double edges are a possibility, in that case we continue with the next node
+                if tries > 10 {
+                    break 'outer;
+                }
                 let neighbor = *weighted_node_list.choose(&mut rng).unwrap();
 
                 // check for double edges and self loops
@@ -432,7 +441,7 @@ pub fn build_ba_with_clustering(
             g.add_edge(i, neighbor, 1);
 
             // Triad formation step
-            if pt < rng.gen::<f64>() {
+            if rng.gen::<f64>() < pt {
                 // connect `i` to a neighbor of `neighbor` (uniformly, apparently)
                 let choices: Vec<NodeIndex<u32>> = g.neighbors(neighbor)
                     .filter(
@@ -443,18 +452,20 @@ pub fn build_ba_with_clustering(
                 // if all neighbors of `neighbor` are already neighbors of `i`
                 // perform a preferential attachment step instead
                 if choices.is_empty() {
-                    let neighbor = loop {
+                    let mut tries = 0;
+                    while tries < 10 {
+                        tries += 1;
                         let neighbor = *weighted_node_list.choose(&mut rng).unwrap();
 
                         // check for double edges and self loops
                         if neighbor != i && g.find_edge(neighbor, i) == None {
-                            break neighbor;
+                            weighted_node_list.push(neighbor);
+                            weighted_node_list.push(i);
+                            g.add_edge(i, neighbor, 1);
+                            break
                         }
                     };
 
-                    weighted_node_list.push(neighbor);
-                    weighted_node_list.push(i);
-                    g.add_edge(i, neighbor, 1);
                 } else {
                     let w = *choices.choose(&mut rng).unwrap();
 
