@@ -606,10 +606,10 @@ impl HegselmannKrause {
                         }
                 }
                 TopologyRealization::Hypergraph(g) => {
-                    'outer: for e in &g.edge_nodes {
+                    'outer: for e in g.factor_graph.neighbors(g.node_nodes[idx]) {
                         let mut avg_opinion = 0.;
                         let mut num_neigh = 0;
-                        for n in g.factor_graph.neighbors(*e) {
+                        for n in g.factor_graph.neighbors(e) {
                             // also i will be a neighbor of itself
                             let neighbor = &self.agents[g.factor_graph[n]];
                             if (i.opinion - neighbor.opinion).abs() > i.tolerance {
