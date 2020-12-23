@@ -117,6 +117,8 @@ pub enum TopologyModel {
     WSlat(usize, f64),
     /// BA + Triangles
     BAT(usize, f64),
+    /// HyperER
+    HyperER(f64, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -431,6 +433,13 @@ impl HegselmannKrause {
 
                 TopologyRealization::Graph(g)
             },
+            TopologyModel::HyperER(c, k) => {
+                let n = self.agents.len();
+                // TODO: maybe ensure connectedness
+                let g = build_hyper_uniform_er(n, *c, *k, &mut self.rng);
+
+                TopologyRealization::Hypergraph(g)
+            },
         }
     }
 
@@ -575,9 +584,8 @@ impl HegselmannKrause {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _) | TopologyModel::WSlat(_, _) | TopologyModel::BAT(_, _)
-                    => self.step_naive(),
                 TopologyModel::FullyConnected => self.step_bisect(),
+                _ => self.step_naive(),
             }
         }
         self.add_state_to_density();
@@ -689,9 +697,8 @@ impl HegselmannKrause {
     pub fn sweep_synchronous(&mut self) {
         match self.topology_model {
             // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-            TopologyModel::ER(_) | TopologyModel::BA(_, _) | TopologyModel::CM(_) | TopologyModel::CMBiased(_) | TopologyModel::SquareLattice(_) | TopologyModel::WS(_, _) | TopologyModel::WSlat(_, _) | TopologyModel::BAT(_, _)
-                => self.sweep_synchronous_naive(),
             TopologyModel::FullyConnected => self.sweep_synchronous_bisect(),
+            _ => self.sweep_synchronous_naive(),
         }
         self.time += 1;
     }
@@ -899,7 +906,10 @@ impl HegselmannKrause {
 
                 (connected_components(&g), num, size, d)
             },
-            TopologyRealization::Hypergraph(g) => unimplemented!(),
+            TopologyRealization::Hypergraph(g) => {
+                (0, 0, 0, g.mean_deg())
+            }
+            ,
         };
 
         // TODO: save more information: size of the largest component, ...
