@@ -15,6 +15,7 @@ use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
+#[cfg(feature = "graphtool")]
 use inline_python::{python,Context};
 
 use ordered_float::OrderedFloat;
@@ -944,6 +945,7 @@ impl HegselmannKrause {
         Ok(())
     }
 
+    #[cfg(feature = "graphtool")]
     pub fn write_graph_png(&self, path: &Path, py: &mut Context, active: bool) -> std::io::Result<()> {
         let gradient = colorous::VIRIDIS;
 

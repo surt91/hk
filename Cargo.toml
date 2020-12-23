@@ -6,6 +6,9 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+graphtool = ["inline-python"]
+
 [dependencies]
 rand = "0.7.0"
 rand_pcg = "0.2.0"
@@ -17,11 +20,12 @@ petgraph = "0.4"
 
 png = "*"
 colorous = "*"
-inline-python = "0.6"
 
 git-version = "*"
 
 largedev = { git = "https://github.com/surt91/largedev" }
+
+inline-python = { version = "0.6", optional = true }
 
 [dev-dependencies]
 criterion = "0.3"
