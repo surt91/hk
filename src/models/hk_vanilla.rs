@@ -971,16 +971,19 @@ impl HegselmannKrause {
     #[cfg(feature = "graphtool")]
     pub fn write_graph_png_with_memory(&self, path: &Path, py: &mut Context, active: bool) -> std::io::Result<()> {
         let gradient = colorous::VIRIDIS;
+        let out = path.to_str().unwrap();
 
-        let colors: Vec<Vec<f64>> = self.agents.iter().map(|i| {
+        // TODO: hypergraph
+        let edgelist: Vec<Vec<usize>>;
+        let colors: Vec<Vec<f64>>;
+
+        match &self.topology {
+            TopologyRealization::Graph(g) => {
+                colors = self.agents.iter().map(|i| {
             let gr = gradient.eval_continuous(i.opinion as f64);
             vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
         }).collect();
-
-        let out = path.to_str().unwrap();
-
-        if let TopologyRealization::Graph(g) = &self.topology {
-            let edgelist: Vec<Vec<usize>> = if active {
+                edgelist = if active {
                 g.edge_indices()
                     .map(|e| {
                         let (u, v) = g.edge_endpoints(e).unwrap();
@@ -996,9 +999,51 @@ impl HegselmannKrause {
                     })
                     .collect()
             };
+            }
+            TopologyRealization::Hypergraph(h) => {
+                colors = self.agents.iter().map(|i| {
+                    let gr = gradient.eval_continuous(i.opinion as f64);
+                    vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
+                }).chain(
+                    h.edge_nodes.iter()
+                        .map(|_| vec![1., 0., 0., 1.])
+                ).collect();
+
+                let g = &h.factor_graph;
+                edgelist = if active {
+                    h.edge_nodes.iter()
+                        .filter(|&&e| {
+                            let opin = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
+                            let opix = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
+                            let tol = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance));
+                            opix.max().unwrap().into_inner() - opin.min().unwrap().into_inner() < tol.min().unwrap().into_inner()
+                        })
+                        .flat_map(|&e| {
+                            g.edges(e).map(|edge| {
+                                vec![edge.source().index(), edge.target().index()]
+                            })
+                        })
+                        .collect()
+                } else {
+                    g.edge_indices()
+                        .map(|e| {
+                            let (u, v) = g.edge_endpoints(e).unwrap();
+                            vec![u.index(), v.index()]
+                        })
+                        .collect()
+                };
+            }
+            _ => {
+                edgelist = Vec::new();
+                colors = Vec::new();
+            }
+        }
 
             py.run(python! {
                 import graph_tool.all as gt
+
+            if len('edgelist) == 0:
+                print("Warning: There are no edges in this graph, do not render anything!")
 
                 g = None
                 if g is None:
@@ -1025,12 +1070,8 @@ impl HegselmannKrause {
                     adjust_aspect=False,
                     output='out,
                 )
-
-                // vb, eb = gt.betweenness(g)
-                // with open("betweenness.dat", "a") as f:
-                //     f.write(" ".join(vb.a))
             });
-        }
+
         Ok(())
     }
 
