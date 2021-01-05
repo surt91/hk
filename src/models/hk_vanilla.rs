@@ -22,6 +22,7 @@ use ordered_float::OrderedFloat;
 
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
+use petgraph::visit::EdgeRef;
 use petgraph::algo::connected_components;
 use super::graph::{
     size_largest_connected_component,
@@ -624,24 +625,24 @@ impl HegselmannKrause {
                             count += 1;
                         }
                 }
-                TopologyRealization::Hypergraph(g) => {
-                    'outer: for e in g.factor_graph.neighbors(g.node_nodes[idx]) {
-                        let mut avg_opinion = 0.;
-                        let mut num_neigh = 0;
-                        for n in g.factor_graph.neighbors(e) {
-                            // also i will be a neighbor of itself
-                            let neighbor = &self.agents[g.factor_graph[n]];
-                            if (i.opinion - neighbor.opinion).abs() > i.tolerance {
-                                continue 'outer;
-                            }
-                            avg_opinion += neighbor.opinion;
-                            num_neigh += 1;
-                        }
+                TopologyRealization::Hypergraph(h) => {
+                    // maybe calculate contribution of every edge behforhand and get it from a
+                    // vec here
+                    let g = &h.factor_graph;
+                    for e in g.neighbors(h.node_nodes[idx]) {
+                        let it = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
+                        let min = it.clone().min().unwrap().into_inner();
+                        let max = it.clone().max().unwrap().into_inner();
+                        let mintol = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance)).min().unwrap().into_inner();
+                        let sum: f32 = g.neighbors(e).map(|n| self.agents[*g.node_weight(n).unwrap()].opinion).sum();
+                        let len = g.neighbors(e).count();
 
-                        // if all nodes of the hyperedge are compatible (otherwise we would have continued above)
+                        // if all nodes of the hyperedge are pairwise compatible
                         // `i` takes the average opinion of this hyperedge into consideration
-                        tmp += avg_opinion / num_neigh as f32;
-                        count += 1
+                        if max - min < mintol {
+                            tmp += sum / len as f32;
+                            count += 1;
+                    }
                     }
                     // if there are no compatible edges, change nothing (and avoid dividing by zero)
                     if count == 0 {
