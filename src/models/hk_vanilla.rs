@@ -37,6 +37,7 @@ use super::graph::{
 use super::hypergraph::{
     Hypergraph,
     build_hyper_uniform_er,
+    convert_to_simplical_complex,
 };
 
 use largedev::{MarkovChain, Model};
@@ -118,8 +119,10 @@ pub enum TopologyModel {
     WSlat(usize, f64),
     /// BA + Triangles
     BAT(usize, f64),
-    /// HyperER
+    /// uniform HyperER
     HyperER(f64, usize),
+    /// uniform HyperER simplical complex
+    HyperERSC(f64, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -438,6 +441,13 @@ impl HegselmannKrause {
                 let n = self.agents.len();
                 // TODO: maybe ensure connectedness
                 let g = build_hyper_uniform_er(n, *c, *k, &mut self.rng);
+
+                TopologyRealization::Hypergraph(g)
+            },
+            TopologyModel::HyperERSC(c, k) => {
+                let n = self.agents.len();
+                // TODO: maybe ensure connectedness
+                let g = convert_to_simplical_complex(&build_hyper_uniform_er(n, *c, *k, &mut self.rng));
 
                 TopologyRealization::Hypergraph(g)
             },

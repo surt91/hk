@@ -1,4 +1,6 @@
 use std::collections::BTreeSet as Set;
+use itertools::Itertools;
+use std::iter::FromIterator;
 
 use rand::Rng;
 use rand_distr::{Binomial, Distribution};
@@ -14,6 +16,7 @@ pub struct Hypergraph {
     // and all nodes of the factor graph representing edges of the hypergraph
     pub edge_nodes: Vec<NodeIndex<u32>>,
     pub edge_set: Set<Set<usize>>,
+    pub ctr: usize,
 }
 
 impl Hypergraph {
@@ -61,6 +64,34 @@ pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng
         factor_graph: g,
         node_nodes: node_array,
         edge_nodes: edge_array,
-        edge_set
+        edge_set,
+        ctr,
     }
+}
+
+pub fn convert_to_simplical_complex(g: &Hypergraph) -> Hypergraph {
+    // currently I copy, maybe I should just modify the graph in place...
+    let mut new = g.clone();
+    let mut ctr = g.ctr;
+
+    // iterate over edges and insert edges between all combinations of all lengths
+    for e in &g.edge_set {
+        for k in 2..e.len() {
+            for comb in e.iter().cloned().combinations(k) {
+                let sub_edge = Set::from_iter(comb.iter().cloned());
+                if ! new.edge_set.contains(&sub_edge) {
+                    ctr += 1;
+                    let idx = new.factor_graph.add_node(ctr);
+                    for i in &sub_edge {
+                        new.factor_graph.add_edge(new.node_nodes[*i], idx, 1);
+                    }
+                    new.edge_nodes.push(idx);
+                    new.edge_set.insert(sub_edge);
+                }
+            }
+        }
+    }
+
+    new.ctr = ctr;
+    new
 }

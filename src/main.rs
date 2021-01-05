@@ -71,7 +71,7 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"])]
     /// topology:{n}
     /// 1 => fully connected{n}
     /// 2 => Erdoes Renyi{n}
@@ -83,6 +83,7 @@ struct Opt {
     /// 8 => Watts-Strogatz small world network on a square lattice{n}
     /// 9 => BA+Triangles{n}
     /// 10 => Hyper-Erdoes-Renyi{n}
+    /// 11 => Hyper-Erdoes-Renyi, Simplical Complex{n}
     topology: u32,
 
     #[structopt(long, default_value = "1", allow_hyphen_values = true)]
@@ -387,6 +388,7 @@ fn main() -> std::io::Result<()> {
         8 => TopologyModel::WSlat(args.topology_parameter as usize, args.topology_parameter2 as f64),
         9 => TopologyModel::BAT(args.topology_parameter as usize, args.topology_parameter2 as f64),
         10 => TopologyModel::HyperER(args.topology_parameter as f64, args.topology_parameter2 as usize),
+        11 => TopologyModel::HyperERSC(args.topology_parameter as f64, args.topology_parameter2 as usize),
         _ => unreachable!(),
     };
 
