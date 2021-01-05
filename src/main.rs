@@ -108,8 +108,8 @@ struct Opt {
     topology_parameter2: f32,
 
     #[structopt(long)]
-    /// switch whether to save an image of the topology in the final state
-    /// will be outname with a .png extention
+    /// switch whether to save an image of the topology in the initial and final state
+    /// will be `outname` with a .png extention
     png: bool,
 
     #[structopt(long, default_value = "0.01")]
@@ -478,6 +478,10 @@ fn main() -> std::io::Result<()> {
             for _ in 0..args.samples {
                 hk.reset();
 
+                if args.png {
+                    hk.write_graph_png(&args.outname.with_extension("init.png"), true)?;
+                }
+
                 // if we only do one sample, we also save a detailed evoluti
                 if args.samples == 1 {
                     hk.write_state(out_detailed.file())?;
@@ -516,7 +520,7 @@ fn main() -> std::io::Result<()> {
                     write_cluster_sizes(&clusters, &mut out_scc.file())?;
                 }
                 if args.png {
-                    hk.write_graph_png(&args.outname.with_extension("png"), true)?;
+                    hk.write_graph_png(&args.outname.with_extension("final.png"), true)?;
                     hk.write_graph_png(&args.outname.with_extension("all.png"), false)?;
                 }
             }
