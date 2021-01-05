@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::PathBuf;
@@ -17,7 +16,7 @@ use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel, DegreeDist};
 use hk::models::graph;
 
-use largedev::{Metropolis, Simple, WangLandau};
+use largedev::{Metropolis, WangLandau};
 
 use git_version::git_version;
 const GIT_VERSION: &str = git_version!();
@@ -107,6 +106,11 @@ struct Opt {
     /// Watts Strogatz: rewiring probability{n}
     /// BA+Triangles: m_t{n}
     topology_parameter2: f32,
+
+    #[structopt(long)]
+    /// switch whether to save an image of the topology in the final state
+    /// will be outname with a .png extention
+    png: bool,
 
     #[structopt(long, default_value = "0.01")]
     /// weight of cost
@@ -481,6 +485,12 @@ fn main() -> std::io::Result<()> {
 
                 let mut ctr = 0;
                 loop {
+                    // draw before the sweep, to get the initial condition
+                    // if we only do one sample, we also save a detailed evolution
+                    if args.samples == 1 {
+                        hk.write_state(out_detailed.file())?;
+                    }
+
                     // test if we are converged
                     ctr += 1;
 
@@ -488,24 +498,6 @@ fn main() -> std::io::Result<()> {
                         hk.sweep_synchronous();
                     } else {
                         hk.sweep();
-                    }
-
-                    // if we only do one sample, we also save a detailed evolution
-                    if args.samples == 1 {
-                        hk.write_state(out_detailed.file())?;
-
-                        if ctr < 400 || ctr % 100 == 0 {
-                            std::fs::create_dir_all("pix")?;
-                            let name = format!("pix/test_{:04}.png", ctr);
-                            hk.write_state_png(&Path::new(&name))?;
-
-                            Command::new("mogrify")
-                                .arg("-scale")
-                                .arg("800%")
-                                .arg(&name)
-                                .spawn()
-                                .expect("upscaling failed");
-                        }
                     }
 
                     if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
@@ -523,17 +515,14 @@ fn main() -> std::io::Result<()> {
                     let clusters = cluster_sizes_from_graph(&hk);
                     write_cluster_sizes(&clusters, &mut out_scc.file())?;
                 }
-
-                // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
+                if args.png {
+                    hk.write_graph_png(&args.outname.with_extension("png"), true)?;
+                    hk.write_graph_png(&args.outname.with_extension("all.png"), false)?;
+                }
             }
 
             hk.write_density(&mut out_density.file())?;
             hk.write_entropy(&mut out_entropy.file())?;
-
-            if args.samples == 1 {
-                let mut gp_file = File::create(&args.outname.with_extension("gp"))?;
-                hk.write_gp_with_resources(&mut gp_file, out_detailed.final_name().to_str().expect("non-unicode filename"))?;
-            }
 
             out_cluster.finalize()?;
             out_nopoor.finalize()?;

@@ -956,7 +956,19 @@ impl HegselmannKrause {
     }
 
     #[cfg(feature = "graphtool")]
-    pub fn write_graph_png(&self, path: &Path, py: &mut Context, active: bool) -> std::io::Result<()> {
+    pub fn write_graph_png(&self, path: &Path, active: bool) -> std::io::Result<()> {
+        let mut py = python!{g = None};
+        self.write_graph_png_with_memory(path, &mut py, active)
+    }
+
+    #[cfg(not(feature = "graphtool"))]
+    pub fn write_graph_png(&self, _path: &Path, _active: bool) -> std::io::Result<()> {
+        println!("Warning: This executable was not compiled the 'graphtool' feature. Can not draw the graph representation. Will ignore this error and proceed.");
+        Ok(())
+    }
+
+    #[cfg(feature = "graphtool")]
+    pub fn write_graph_png_with_memory(&self, path: &Path, py: &mut Context, active: bool) -> std::io::Result<()> {
         let gradient = colorous::VIRIDIS;
 
         let colors: Vec<Vec<f64>> = self.agents.iter().map(|i| {
