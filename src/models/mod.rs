@@ -1,4 +1,5 @@
 mod hk_vanilla;
+mod deffuant;
 mod hk_lorenz;
 mod hk_lorenz_singleupdate;
 pub mod graph;
@@ -12,6 +13,8 @@ pub use hk_vanilla::{CostModel, ResourceModel, PopulationModel, TopologyModel, D
 
 pub use hk_lorenz::HegselmannKrauseLorenz;
 pub use hk_lorenz_singleupdate::HegselmannKrauseLorenzSingle;
+
+pub use deffuant::{Deffuant, DeffuantBuilder};
 
 pub use simulated_annealing::{anneal, anneal_sweep};
 pub use simulated_annealing::{Exponential, Linear, Constant, Model};

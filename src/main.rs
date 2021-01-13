@@ -11,6 +11,7 @@ use rand_pcg::Pcg64;
 use itertools::Itertools;
 
 use hk::{HegselmannKrauseBuilder,HegselmannKrause};
+use hk::{Deffuant, DeffuantBuilder};
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel, DegreeDist};
@@ -144,9 +145,9 @@ struct Opt {
     /// number of times to repeat the simulation
     samples: u32,
 
-    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8"])]
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9"])]
     /// which model to simulate:{n}
-    /// 1 -> Hegselmann Krause,{n}
+    /// 1 -> Hegselmann Krause{n}
     /// 2 -> multidimensional Hegselmann Krause (Lorenz){n}
     /// 3 -> HK with active cost{n}
     /// 4 -> multidimensional Hegselmann Krause (Lorenz) but only updating one dimension{n}
@@ -154,6 +155,7 @@ struct Opt {
     /// 6 -> HK annealing with cost and resources{n}
     /// 7 -> HK annealing with local energy{n}
     /// 8 -> HK annealing with constant temperature{n}
+    /// 9 -> Deffuant Weisbuch{n}
     model: u32,
 
     #[structopt(long, default_value = "./tmp", parse(from_os_str))]
@@ -531,6 +533,81 @@ fn main() -> std::io::Result<()> {
             out_cluster.finalize()?;
             out_nopoor.finalize()?;
             out_scc.finalize()?;
+            out_density.finalize()?;
+            out_entropy.finalize()?;
+            out_topology.finalize()?;
+            out_info.finalize()?;
+            out_detailed.finalize()?;
+
+            Ok(())
+        },
+        9 => {
+            let mut dw = DeffuantBuilder::new(args.num_agents)
+                .seed(args.seed)
+                .population_model(pop_model)
+                .topology_model(topology_model)
+                .build();
+
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
+            let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
+            let mut out_topology = Output::new(&args.outname, "topology.dat", &args.tmp)?;
+            let mut out_info = Output::new(&args.outname, "info.dat", &args.tmp)?;
+
+            // if we only do one sample, we also save a detailed evolution
+            let mut out_detailed = Output::new(&args.outname, "detailed.dat", &args.tmp)?;
+
+            write!(out_info.file(), "{}\n{}\n", info_version, info_args)?;
+
+            for _ in 0..args.samples {
+                dw.reset();
+
+                if args.png {
+                    dw.write_graph_png(&args.outname.with_extension("init.png"), true)?;
+                }
+
+                // if we only do one sample, we also save a detailed evoluti
+                if args.samples == 1 {
+                    dw.write_state(out_detailed.file())?;
+                }
+
+                let mut ctr = 0;
+                loop {
+                    // draw before the sweep, to get the initial condition
+                    // if we only do one sample, we also save a detailed evolution
+                    if args.samples == 1 {
+                        dw.write_state(out_detailed.file())?;
+                    }
+
+                    // test if we are converged
+                    ctr += 1;
+
+                    if args.sync {
+                        unimplemented!();
+                    } else {
+                        dw.sweep();
+                    }
+
+                    if dw.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
+                        writeln!(out_cluster.file(), "# sweeps: {}", ctr)?;
+                        dw.fill_density();
+                        break;
+                    }
+                    dw.acc_change = 0.;
+                }
+                dw.write_cluster_sizes(&mut out_cluster.file())?;
+                dw.write_topology_info(&mut out_topology.file())?;
+
+                if args.png {
+                    dw.write_graph_png(&args.outname.with_extension("final.png"), true)?;
+                    dw.write_graph_png(&args.outname.with_extension("all.png"), false)?;
+                }
+            }
+
+            dw.write_density(&mut out_density.file())?;
+            dw.write_entropy(&mut out_entropy.file())?;
+
+            out_cluster.finalize()?;
             out_density.finalize()?;
             out_entropy.finalize()?;
             out_topology.finalize()?;

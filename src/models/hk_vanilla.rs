@@ -89,7 +89,7 @@ pub enum DegreeDist {
 }
 
 impl DegreeDist {
-    fn gen(self, mut rng: &mut impl Rng) -> Vec<usize> {
+    pub fn gen(self, mut rng: &mut impl Rng) -> Vec<usize> {
         match self{
             DegreeDist::PowerLaw(n, min, exp) => {
                 let pareto = Pareto::new(min, exp - 1.).unwrap();
