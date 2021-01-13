@@ -1055,14 +1055,18 @@ impl HegselmannKrause {
                     g.add_edge_list('edgelist)
 
                 colors = g.new_vp("vector<double>")
+            sizes = g.new_vp("double")
+            shapes = g.new_vp("int")
                 for n, c in enumerate('colors):
                     colors[n] = c
+                sizes[n] = 3 if c == [1., 0., 0., 1.] else 20
+                shapes[n] = 0 if c == [1., 0., 0., 1.] else 2
 
                 gt.graph_draw(
                     g,
                     pos=pos,
-                    vertex_shape="square",
-                    vertex_size=10,
+                vertex_shape=shapes,
+                vertex_size=sizes,
                     vertex_fill_color=colors,
                     edge_color=[0.7, 0.7, 0.7, 0.5],
                     bg_color=[1., 1., 1., 1.],
