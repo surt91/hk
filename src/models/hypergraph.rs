@@ -4,6 +4,7 @@ use std::iter::FromIterator;
 
 use rand::Rng;
 use rand_distr::{Binomial, Distribution};
+use rand::seq::SliceRandom;
 
 use petgraph::graph::{UnGraph, Graph, NodeIndex};
 
@@ -57,6 +58,76 @@ pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng
             }
             ctr += 1;
             edge_set.insert(idx);
+        }
+    }
+
+    Hypergraph {
+        factor_graph: g,
+        node_nodes: node_array,
+        edge_nodes: edge_array,
+        edge_set,
+        ctr,
+    }
+}
+
+pub fn build_hyper_uniform_ba(n: usize, m: usize, k: usize, mut rng: &mut impl Rng) -> Hypergraph {
+    // ensure that the edges connect at least two nodes
+    // note that k = 2 is just a regular graph, which might be handy for testing
+    assert!(k > 1);
+
+    let mut g = Graph::new_undirected();
+    let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
+    let mut edge_array: Vec<NodeIndex<u32>> = Vec::new();
+    let mut edge_set: Set<Set<usize>> = Set::new();
+
+    let mut weighted_node_list: Vec<NodeIndex<u32>> = Vec::new();
+    let m0 = std::cmp::max(m-1, k);
+
+    let mut ctr = 0;
+
+    // build starting core of m0 = m-1 nodes
+    // we therefore choose all subsets of size k
+    for subset in (0..m0).combinations(k) {
+        let he = g.add_node(n + ctr);
+        edge_array.push(he);
+
+        for &i in &subset {
+            g.add_edge(node_array[i], he, 1);
+            weighted_node_list.push(node_array[i]);
+        }
+        edge_set.insert(subset.into_iter().collect::<Set<usize>>());
+
+        ctr += 1;
+    }
+
+    // preferential attachment
+    for &i in node_array.iter().skip(m0) {
+        // add new node and connect it with `m` hyperedges to (k-1)m other nodes
+        for _ in 0..m {
+            let neighbors = loop {
+                let hyper_edge_members = weighted_node_list
+                    .choose_multiple(&mut rng, k-1)
+                    .cloned()
+                    .chain(std::iter::once(i))
+                    .collect::<Set<NodeIndex<u32>>>();
+
+                // ensure members are unique and
+                // check for double edges and self loops
+                if hyper_edge_members.len() == k
+                    && !edge_set.contains(&hyper_edge_members.iter().map(|x| x.index()).collect::<Set<usize>>()) {
+                    break hyper_edge_members;
+                }
+            };
+
+            // add the edge
+            // and update the weights
+            let he = g.add_node(n + ctr);
+            edge_array.push(he);
+            for &i in &neighbors {
+                g.add_edge(i, he, 1);
+                weighted_node_list.push(i);
+            }
+            edge_set.insert(neighbors.iter().map(|x| x.index()).collect::<Set<usize>>());
         }
     }
 
