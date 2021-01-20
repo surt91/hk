@@ -71,7 +71,7 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"])]
     /// topology:{n}
     /// 1 => fully connected{n}
     /// 2 => Erdoes Renyi{n}
@@ -84,6 +84,7 @@ struct Opt {
     /// 9 => BA+Triangles{n}
     /// 10 => Hyper-Erdoes-Renyi{n}
     /// 11 => Hyper-Erdoes-Renyi, Simplical Complex{n}
+    /// 12 => Hyper-Barabasi-Albert{n}
     topology: u32,
 
     #[structopt(long, default_value = "1", allow_hyphen_values = true)]
@@ -95,6 +96,7 @@ struct Opt {
     /// square lattice: n-th nearest neighbors{n}
     /// Watts Strogatz: n-th nearest neighbors{n}
     /// BA+Triangles: m{n}
+    /// HyperBA: m{n}
     topology_parameter: f32,
 
     #[structopt(long, default_value = "1")]
@@ -106,6 +108,7 @@ struct Opt {
     /// square lattice: unused{n}
     /// Watts Strogatz: rewiring probability{n}
     /// BA+Triangles: m_t{n}
+    /// HyperBA: k{n}
     topology_parameter2: f32,
 
     #[structopt(long)]
@@ -145,7 +148,7 @@ struct Opt {
     /// number of times to repeat the simulation
     samples: u32,
 
-    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9"])]
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])]
     /// which model to simulate:{n}
     /// 1 -> Hegselmann Krause{n}
     /// 2 -> multidimensional Hegselmann Krause (Lorenz){n}
@@ -156,6 +159,7 @@ struct Opt {
     /// 7 -> HK annealing with local energy{n}
     /// 8 -> HK annealing with constant temperature{n}
     /// 9 -> Deffuant Weisbuch{n}
+    /// 10 -> Only topology information{n}
     model: u32,
 
     #[structopt(long, default_value = "./tmp", parse(from_os_str))]
@@ -341,7 +345,7 @@ fn main() -> std::io::Result<()> {
         3 => CostModel::Rebounce,
         5 => CostModel::Change(args.eta as f32),
         _ => {
-            println!("Warning: you use a not well tested secondary type!");
+            println!("# Warning: you use a not well tested secondary type!");
             CostModel::Free
         },
     };
@@ -395,6 +399,7 @@ fn main() -> std::io::Result<()> {
         9 => TopologyModel::BAT(args.topology_parameter as usize, args.topology_parameter2 as f64),
         10 => TopologyModel::HyperER(args.topology_parameter as f64, args.topology_parameter2 as usize),
         11 => TopologyModel::HyperERSC(args.topology_parameter as f64, args.topology_parameter2 as usize),
+        12 => TopologyModel::HyperBA(args.topology_parameter as usize, args.topology_parameter2 as usize),
         _ => unreachable!(),
     };
 
@@ -818,6 +823,33 @@ fn main() -> std::io::Result<()> {
 
             Ok(())
         },
+        10 => {
+            use counter::Counter;
+            use hk::models::hypergraph::{Hypergraph, build_hyper_uniform_ba};
+            let mut rng = Pcg64::seed_from_u64(args.seed);
+            if args.topology != 10 {
+                println!("only implemented for HyperBA yet");
+                unimplemented!()
+            }
+
+            let c = (0..args.iterations).flat_map(|_| {
+                    let h = build_hyper_uniform_ba(
+                        args.num_agents as usize,
+                        args.topology_parameter as usize,
+                        args.topology_parameter2 as usize,
+                        &mut rng
+                    );
+                    h.degrees()
+                })
+                .collect::<Counter<_>>();
+
+            for (i, j) in c.most_common() {
+                println!("{} {}", i, j)
+            }
+
+
+            Ok(())
+        }
         _ => unreachable!()
     }
 }

@@ -38,6 +38,7 @@ use super::hypergraph::{
     Hypergraph,
     build_hyper_uniform_er,
     convert_to_simplical_complex,
+    build_hyper_uniform_ba,
 };
 
 /// maximal time to save density information for
@@ -317,6 +318,12 @@ impl Deffuant {
                 let n = self.agents.len();
                 // TODO: maybe ensure connectedness
                 let g = convert_to_simplical_complex(&build_hyper_uniform_er(n, *c, *k, &mut self.rng));
+
+                TopologyRealization::Hypergraph(g)
+            },
+            TopologyModel::HyperBA(m, k) => {
+                let n = self.agents.len();
+                let g = build_hyper_uniform_ba(n, *m, *k, &mut self.rng);
 
                 TopologyRealization::Hypergraph(g)
             },

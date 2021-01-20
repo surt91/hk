@@ -24,6 +24,13 @@ impl Hypergraph {
     pub fn mean_deg(&self) -> f64 {
         self.edge_set.iter().map(|s| s.len()).sum::<usize>() as f64 / self.node_nodes.len() as f64
     }
+
+    pub fn degrees(&self) -> Vec<usize> {
+        self.factor_graph.node_indices()
+            .filter(|i| i.index() < self.node_nodes.len())  // do not count nodes corresponding to hyperedges
+            .map(|i| self.factor_graph.neighbors(i).count())
+            .collect()
+    }
 }
 
 fn n_choose_k(n: usize, k: usize) -> usize {
@@ -104,7 +111,7 @@ pub fn build_hyper_uniform_ba(n: usize, m: usize, k: usize, mut rng: &mut impl R
     for &i in node_array.iter().skip(m0) {
         // add new node and connect it with `m` hyperedges to (k-1)m other nodes
         for _ in 0..m {
-            let neighbors = loop {
+            let (neighbors, edge) = loop {
                 let hyper_edge_members = weighted_node_list
                     .choose_multiple(&mut rng, k-1)
                     .cloned()
@@ -113,9 +120,13 @@ pub fn build_hyper_uniform_ba(n: usize, m: usize, k: usize, mut rng: &mut impl R
 
                 // ensure members are unique and
                 // check for double edges and self loops
+                let edge = hyper_edge_members.iter()
+                    .map(|x| x.index())
+                    .collect::<Set<usize>>();
+
                 if hyper_edge_members.len() == k
-                    && !edge_set.contains(&hyper_edge_members.iter().map(|x| x.index()).collect::<Set<usize>>()) {
-                    break hyper_edge_members;
+                    && !edge_set.contains(&edge) {
+                    break (hyper_edge_members, edge);
                 }
             };
 
@@ -127,7 +138,8 @@ pub fn build_hyper_uniform_ba(n: usize, m: usize, k: usize, mut rng: &mut impl R
                 g.add_edge(i, he, 1);
                 weighted_node_list.push(i);
             }
-            edge_set.insert(neighbors.iter().map(|x| x.index()).collect::<Set<usize>>());
+            edge_set.insert(edge);
+            ctr += 1;
         }
     }
 
