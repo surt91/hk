@@ -13,6 +13,7 @@ use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 use rand::seq::IteratorRandom;
+use ordered_float::OrderedFloat;
 
 #[cfg(feature = "graphtool")]
 use inline_python::{python,Context};
@@ -352,13 +353,14 @@ impl Deffuant {
     }
 
     pub fn step_naive(&mut self) {
-        // get a random agent
-        let idx = self.rng.gen_range(0, self.num_agents) as usize;
-        let i = &self.agents[idx];
-
-        let old_opinion = i.opinion;
-        let (new_opinion, idx2) = match &self.topology {
+        let old_opinion;
+        let new_opinion = match &self.topology {
             TopologyRealization::None => {
+                // get a random agent
+                let idx = self.rng.gen_range(0, self.num_agents) as usize;
+                let i = &self.agents[idx];
+                old_opinion = i.opinion;
+
                 let idx2 = loop{
                     let tmp = self.rng.gen_range(0, self.num_agents) as usize;
                     if tmp != idx {
@@ -366,59 +368,69 @@ impl Deffuant {
                     }
                 };
                 if (i.opinion - self.agents[idx2].opinion).abs() < i.tolerance {
-                    ((i.opinion + self.agents[idx2].opinion) / 2., Some(idx))
+                    let new_opinion = (i.opinion + self.agents[idx2].opinion) / 2.;
+                    // change the opinion of both endpoints
+                    self.agents[idx].opinion = new_opinion;
+                    self.agents[idx2].opinion = new_opinion;
+                    new_opinion
                 } else {
-                    (i.opinion, None)
+                    old_opinion
                 }
             }
             TopologyRealization::Graph(g) => {
+                // get a random agent
+                let idx = self.rng.gen_range(0, self.num_agents) as usize;
+                let i = &self.agents[idx];
+                old_opinion = i.opinion;
+
                 let nodes: Vec<NodeIndex<u32>> = g.node_indices().collect();
                 let j = g.neighbors(nodes[idx])
                     .choose(&mut self.rng);
                 if let Some(idx2) = j {
                     if (i.opinion - self.agents[g[idx2]].opinion).abs() < i.tolerance {
-                        ((i.opinion + self.agents[g[idx2]].opinion) / 2., Some(g[idx2]))
+                        let new_opinion = (i.opinion + self.agents[g[idx2]].opinion) / 2.;
+                        // change the opinion of both endpoints
+                        self.agents[idx].opinion = new_opinion;
+                        self.agents[g[idx2]].opinion = new_opinion;
+                        new_opinion
                     } else {
-                        (i.opinion, None)
+                        old_opinion
                     }
                 } else {
-                    (i.opinion, None)
+                    old_opinion
                 }
             }
-            TopologyRealization::Hypergraph(g) => unimplemented!(),
-            // TopologyRealization::Hypergraph(h) => {
-            //     // maybe calculate contribution of every edge behforhand and get it from a
-            //     // vec here
-            //     let g = &h.factor_graph;
-            //     for e in g.neighbors(h.node_nodes[idx]) {
-            //         let it = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
-            //         let min = it.clone().min().unwrap().into_inner();
-            //         let max = it.clone().max().unwrap().into_inner();
-            //         let mintol = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance)).min().unwrap().into_inner();
-            //         let sum: f32 = g.neighbors(e).map(|n| self.agents[*g.node_weight(n).unwrap()].opinion).sum();
-            //         let len = g.neighbors(e).count();
+            TopologyRealization::Hypergraph(h) => {
+                // get a random hyperdege
+                let eidx = self.rng.gen_range(0, h.edge_nodes.len()) as usize;
+                let e = h.edge_nodes[eidx];
 
-            //         // if all nodes of the hyperedge are pairwise compatible
-            //         // `i` takes the average opinion of this hyperedge into consideration
-            //         if max - min < mintol {
-            //             tmp += sum / len as f32;
-            //             count += 1;
-            //         }
-            //     }
-            //     // if there are no compatible edges, change nothing (and avoid dividing by zero)
-            //     if count == 0 {
-            //         count = 1;
-            //         tmp = i.opinion;
-            //     }
-            // },
+                let g = &h.factor_graph;
+
+                let it = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
+                let min = it.clone().min().unwrap().into_inner();
+                let max = it.clone().max().unwrap().into_inner();
+                let mintol = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance)).min().unwrap().into_inner();
+                let sum: f32 = g.neighbors(e).map(|n| self.agents[*g.node_weight(n).unwrap()].opinion).sum();
+                let len = g.neighbors(e).count();
+
+                old_opinion = min;
+
+                // if all nodes of the hyperedge are pairwise compatible
+                // all members of this hyperedge assume its average opinion
+                if max - min < mintol {
+                    let new_opinion = sum / len as f32;
+                    for n in g.neighbors(e) {
+                        self.agents[*g.node_weight(n).unwrap()].opinion = new_opinion
+                    }
+                    new_opinion
+                } else {
+                    old_opinion
+                }
+            },
         };
 
         self.acc_change += (old_opinion - new_opinion).abs();
-
-        self.agents[idx].opinion = new_opinion;
-        if let Some(j) = idx2 {
-            self.agents[j].opinion = new_opinion;
-        }
     }
 
     pub fn sweep(&mut self) {
