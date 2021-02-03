@@ -17,6 +17,7 @@ itertools = "*"
 ordered-float = "1.0"
 structopt = "0.3"
 petgraph = "0.4"
+counter = "*"
 
 png = "*"
 colorous = "*"
