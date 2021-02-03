@@ -9,7 +9,6 @@ use std::io::BufWriter;
 use std::io::prelude::*;
 
 use rand::{Rng, SeedableRng};
-use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 use rand::seq::IteratorRandom;
@@ -19,28 +18,12 @@ use ordered_float::OrderedFloat;
 use inline_python::{python,Context};
 
 use super::{PopulationModel, TopologyModel, TopologyRealization, ResourceModel, Agent, EPS};
-use super::ABM;
+use super::{ABM, ABMBuilder};
 
-use petgraph::graph::{Graph, NodeIndex};
-use petgraph::Undirected;
-use petgraph::visit::EdgeRef;
+use petgraph::graph::NodeIndex;
 use petgraph::algo::connected_components;
 use super::graph::{
     size_largest_connected_component,
-    build_er,
-    build_ba,
-    build_cm,
-    build_cm_biased,
-    build_lattice,
-    build_ws,
-    build_ws_lattice,
-    build_ba_with_clustering,
-};
-use super::hypergraph::{
-    Hypergraph,
-    build_hyper_uniform_er,
-    convert_to_simplical_complex,
-    build_hyper_uniform_ba,
 };
 
 /// maximal time to save density information for
@@ -48,44 +31,8 @@ const THRESHOLD: usize = 400;
 const ACC_EPS: f32 = 1e-3;
 const DENSITYBINS: usize = 100;
 
-
-pub struct DeffuantBuilder {
-    num_agents: u32,
-
-    population_model: PopulationModel,
-    topology_model: TopologyModel,
-
-    seed: u64,
-}
-
-impl DeffuantBuilder {
-    pub fn new(num_agents: u32) -> DeffuantBuilder {
-        DeffuantBuilder {
-            num_agents,
-
-            population_model: PopulationModel::Uniform(0., 1.),
-            topology_model: TopologyModel::FullyConnected,
-
-            seed: 42,
-        }
-    }
-
-    pub fn population_model(&mut self, population_model: PopulationModel) -> &mut DeffuantBuilder {
-        self.population_model = population_model;
-        self
-    }
-
-    pub fn topology_model(&mut self, topology_model: TopologyModel) -> &mut DeffuantBuilder {
-        self.topology_model = topology_model;
-        self
-    }
-
-    pub fn seed(&mut self, seed: u64) -> &mut DeffuantBuilder {
-        self.seed = seed;
-        self
-    }
-
-    pub fn build(&self) -> Deffuant {
+impl ABMBuilder {
+    pub fn dw(&self) -> Deffuant {
         let rng = Pcg64::seed_from_u64(self.seed);
         let agents: Vec<Agent> = Vec::new();
 

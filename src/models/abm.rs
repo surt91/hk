@@ -1,15 +1,12 @@
 
 use std::path::Path;
 
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 
 #[cfg(feature = "graphtool")]
 use inline_python::{python,Context};
-
-// TODO: integrate Builder here with two
-
 
 use petgraph::graph::Graph;
 use petgraph::Undirected;
@@ -457,5 +454,57 @@ pub trait ABM {
         });
 
         Ok(())
+    }
+}
+
+
+pub struct ABMBuilder {
+    pub(super) num_agents: u32,
+
+    pub(super) cost_model: CostModel,
+    pub(super) resource_model: ResourceModel,
+    pub(super) population_model: PopulationModel,
+    pub(super) topology_model: TopologyModel,
+
+    pub(super) seed: u64,
+}
+
+impl ABMBuilder {
+    pub fn new(num_agents: u32) -> ABMBuilder {
+        ABMBuilder {
+            num_agents,
+
+            cost_model: CostModel::Free,
+            resource_model: ResourceModel::Uniform(0., 1.),
+            population_model: PopulationModel::Uniform(0., 1.),
+            topology_model: TopologyModel::FullyConnected,
+
+            seed: 42,
+        }
+    }
+
+    pub fn cost_model(&mut self, cost_model: CostModel) -> &mut ABMBuilder {
+        self.cost_model = cost_model;
+        self
+    }
+
+    pub fn resource_model(&mut self, resource_model: ResourceModel) -> &mut ABMBuilder {
+        self.resource_model = resource_model;
+        self
+    }
+
+    pub fn population_model(&mut self, population_model: PopulationModel) -> &mut ABMBuilder {
+        self.population_model = population_model;
+        self
+    }
+
+    pub fn topology_model(&mut self, topology_model: TopologyModel) -> &mut ABMBuilder {
+        self.topology_model = topology_model;
+        self
+    }
+
+    pub fn seed(&mut self, seed: u64) -> &mut ABMBuilder {
+        self.seed = seed;
+        self
     }
 }

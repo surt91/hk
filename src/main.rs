@@ -10,14 +10,13 @@ use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
-use hk::{HegselmannKrauseBuilder,HegselmannKrause};
-use hk::{Deffuant, DeffuantBuilder};
+use hk::{ABM, ABMBuilder};
+use hk::HegselmannKrause;
 use hk::HegselmannKrauseLorenz;
 use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel, DegreeDist};
 use hk::models::graph;
 
-use hk::models::ABM;
 
 use largedev::{Metropolis, WangLandau};
 
@@ -410,13 +409,13 @@ fn main() -> std::io::Result<()> {
     };
 
     if let Some(LargeDev::Metropolis) = args.cmd {
-        let mut hk = HegselmannKrauseBuilder::new(args.num_agents)
+        let mut hk = ABMBuilder::new(args.num_agents)
             .seed(args.seed)
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .topology_model(topology_model)
-            .build();
+            .hk();
         hk.reset();
         hk.relax();
 
@@ -438,13 +437,13 @@ fn main() -> std::io::Result<()> {
     }
 
     if let Some(LargeDev::WangLandau(wl)) = args.cmd {
-        let mut hk = HegselmannKrauseBuilder::new(args.num_agents)
+        let mut hk = ABMBuilder::new(args.num_agents)
             .seed(args.seed)
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .topology_model(topology_model)
-            .build();
+            .hk();
         hk.reset();
         hk.relax();
 
@@ -467,13 +466,13 @@ fn main() -> std::io::Result<()> {
 
     match args.model {
         1 | 3 | 5 => {
-            let mut hk = HegselmannKrauseBuilder::new(args.num_agents)
+            let mut hk = ABMBuilder::new(args.num_agents)
                 .seed(args.seed)
                 .cost_model(cost_model)
                 .resource_model(resource_model)
                 .population_model(pop_model)
                 .topology_model(topology_model)
-                .build();
+                .hk();
 
             let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
             let mut out_nopoor = Output::new(&args.outname, "nopoor.dat", &args.tmp)?;
@@ -553,11 +552,11 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         9 => {
-            let mut dw = DeffuantBuilder::new(args.num_agents)
+            let mut dw = ABMBuilder::new(args.num_agents)
                 .seed(args.seed)
                 .population_model(pop_model)
                 .topology_model(topology_model)
-                .build();
+                .dw();
 
             let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
             let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
@@ -707,13 +706,13 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         6 => {
-            let mut hk = HegselmannKrauseBuilder::new(
+            let mut hk = ABMBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
             .cost_model(CostModel::Annealing(args.eta as f32))
             .resource_model(resource_model)
             .population_model(pop_model)
-            .build();
+            .hk();
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
@@ -752,13 +751,13 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         7 => {
-            let mut hk = HegselmannKrauseBuilder::new(
+            let mut hk = ABMBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
             .cost_model(CostModel::Annealing(args.eta as f32))
             .resource_model(resource_model)
             .population_model(pop_model)
-            .build();
+            .hk();
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
@@ -785,13 +784,13 @@ fn main() -> std::io::Result<()> {
             Ok(())
         },
         8 => {
-            let mut hk = HegselmannKrauseBuilder::new(
+            let mut hk = ABMBuilder::new(
                 args.num_agents,
             ).seed(args.seed)
             .cost_model(CostModel::Annealing(args.eta as f32))
             .resource_model(resource_model)
             .population_model(pop_model)
-            .build();
+            .hk();
 
             let mut rng = Pcg64::seed_from_u64(args.seed);
 
@@ -831,7 +830,7 @@ fn main() -> std::io::Result<()> {
         },
         10 => {
             use counter::Counter;
-            use hk::models::hypergraph::{Hypergraph, build_hyper_uniform_ba};
+            use hk::models::hypergraph::build_hyper_uniform_ba;
             let mut rng = Pcg64::seed_from_u64(args.seed);
             if args.topology != 10 {
                 println!("only implemented for HyperBA yet");

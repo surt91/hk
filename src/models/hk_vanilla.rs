@@ -20,30 +20,15 @@ use inline_python::{python,Context};
 
 use ordered_float::OrderedFloat;
 
-use petgraph::graph::{Graph, NodeIndex};
-use petgraph::Undirected;
-use petgraph::visit::EdgeRef;
+use petgraph::graph::NodeIndex;
 use petgraph::algo::connected_components;
 use super::graph::{
     size_largest_connected_component,
-    build_er,
-    build_ba,
-    build_cm,
-    build_cm_biased,
-    build_lattice,
-    build_ws,
-    build_ws_lattice,
-    build_ba_with_clustering,
-};
-use super::hypergraph::{
-    Hypergraph,
-    build_hyper_uniform_er,
-    convert_to_simplical_complex,
-    build_hyper_uniform_ba,
 };
 
 use super::{EPS, CostModel, ResourceModel, PopulationModel, TopologyModel, TopologyRealization, Agent};
 use super::ABM;
+use super::ABMBuilder;
 
 use largedev::{MarkovChain, Model};
 
@@ -52,57 +37,8 @@ const THRESHOLD: usize = 400;
 const ACC_EPS: f32 = 1e-3;
 const DENSITYBINS: usize = 100;
 
-pub struct HegselmannKrauseBuilder {
-    num_agents: u32,
-
-    cost_model: CostModel,
-    resource_model: ResourceModel,
-    population_model: PopulationModel,
-    topology_model: TopologyModel,
-
-    seed: u64,
-}
-
-impl HegselmannKrauseBuilder {
-    pub fn new(num_agents: u32) -> HegselmannKrauseBuilder {
-        HegselmannKrauseBuilder {
-            num_agents,
-
-            cost_model: CostModel::Free,
-            resource_model: ResourceModel::Uniform(0., 1.),
-            population_model: PopulationModel::Uniform(0., 1.),
-            topology_model: TopologyModel::FullyConnected,
-
-            seed: 42,
-        }
-    }
-
-    pub fn cost_model(&mut self, cost_model: CostModel) -> &mut HegselmannKrauseBuilder {
-        self.cost_model = cost_model;
-        self
-    }
-
-    pub fn resource_model(&mut self, resource_model: ResourceModel) -> &mut HegselmannKrauseBuilder {
-        self.resource_model = resource_model;
-        self
-    }
-
-    pub fn population_model(&mut self, population_model: PopulationModel) -> &mut HegselmannKrauseBuilder {
-        self.population_model = population_model;
-        self
-    }
-
-    pub fn topology_model(&mut self, topology_model: TopologyModel) -> &mut HegselmannKrauseBuilder {
-        self.topology_model = topology_model;
-        self
-    }
-
-    pub fn seed(&mut self, seed: u64) -> &mut HegselmannKrauseBuilder {
-        self.seed = seed;
-        self
-    }
-
-    pub fn build(&self) -> HegselmannKrause {
+impl ABMBuilder {
+    pub fn hk(&self) -> HegselmannKrause {
         let rng = Pcg64::seed_from_u64(self.seed);
         let agents: Vec<Agent> = Vec::new();
 
@@ -137,6 +73,7 @@ impl HegselmannKrauseBuilder {
         hk
     }
 }
+
 
 #[derive(Clone)]
 pub struct HegselmannKrause {

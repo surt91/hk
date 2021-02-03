@@ -12,13 +12,14 @@ mod local_simulated_annealing;
 
 pub use abm::ABM;
 pub use abm::{Agent, CostModel, ResourceModel, PopulationModel, TopologyModel, TopologyRealization, DegreeDist, EPS};
+pub use abm::ABMBuilder;
 
-pub use hk_vanilla::{HegselmannKrause, HegselmannKrauseBuilder};
+pub use hk_vanilla::HegselmannKrause;
 
 pub use hk_lorenz::HegselmannKrauseLorenz;
 pub use hk_lorenz_singleupdate::HegselmannKrauseLorenzSingle;
 
-pub use deffuant::{Deffuant, DeffuantBuilder};
+pub use deffuant::Deffuant;
 
 pub use simulated_annealing::{anneal, anneal_sweep};
 pub use simulated_annealing::{Exponential, Linear, Constant, Model};
