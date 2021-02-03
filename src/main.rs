@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 use std::process::Command;
 
@@ -201,7 +201,7 @@ enum LargeDev {
 // TODO: I should introduce the trait `model` and make everything below more generic
 // a model should implement sweep, write_state and write_gp
 
-fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &std::path::PathBuf) -> Result<(), std::io::Error>{
+fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &Path) -> Result<(), std::io::Error>{
     // let dotname = filename.with_extension(format!("{}.dot", ctr));
     println!("{:?}", dotname);
     let mut dotfile = File::create(&dotname)?;
@@ -258,7 +258,7 @@ struct Output {
 }
 
 impl Output {
-    pub fn new(outname: &PathBuf, extension: &str, tmp_path: &PathBuf) -> std::io::Result<Output> {
+    pub fn new(outname: &Path, extension: &str, tmp_path: &Path) -> std::io::Result<Output> {
         use rand::{thread_rng};
         use rand::distributions::Alphanumeric;
         let random: String = thread_rng()
@@ -292,7 +292,7 @@ impl Output {
         self.final_path.with_extension(&gz_ext)
     }
 
-    fn zip(name: &std::path::PathBuf) {
+    fn zip(name: &Path) {
         Command::new("gzip")
             .arg(name.to_str().unwrap())
             .output()

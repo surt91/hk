@@ -28,7 +28,17 @@ use super::hypergraph::{
     build_hyper_uniform_ba,
 };
 
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::prelude::*;
+use itertools::Itertools;
+use petgraph::algo::connected_components;
+
 pub const EPS: f32 = 2e-3;
+/// maximal time to save density information for
+const THRESHOLD: usize = 400;
+const ACC_EPS: f32 = 1e-3;
+const DENSITYBINS: usize = 100;
 
 #[derive(PartialEq, Clone)]
 pub enum CostModel {
@@ -151,16 +161,62 @@ fn stretch(x: f32, low: f32, high: f32) -> f32 {
     x*(high-low)+low
 }
 
+#[derive(Clone, Debug)]
+pub(super) struct ABMinternals {
+    acc_change: f32,
+    dynamic_density: Vec<Vec<u64>>,
+    entropies_acc: Vec<f32>,
+
+    density_slice: Vec<u64>,
+}
+
+impl ABMinternals {
+    pub fn new() -> ABMinternals {
+        ABMinternals {
+            acc_change: 0.,
+            dynamic_density: Vec::new(),
+            density_slice: vec![0; DENSITYBINS+1],
+            entropies_acc: Vec::new(),
+        }
+    }
+}
+
 pub trait ABM {
     fn sweep(&mut self);
     fn reset(&mut self);
 
     // getter methods to access fields
     fn get_population_model(&self) -> PopulationModel;
-    fn get_topology_model(&self) -> TopologyModel;
     fn get_resource_model(&self) -> ResourceModel;
+    fn get_topology_model(&self) -> TopologyModel;
+    fn get_topology(&self) -> &TopologyRealization;
     fn get_agents(&self) -> &Vec<Agent>;
+    fn get_time(&self) -> usize;
     fn get_rng(&mut self) -> &mut Pcg64;
+
+    fn get_abm_internals(&mut self) -> &mut ABMinternals;
+
+    fn get_acc_change(&self) -> f32 {
+        self.get_abm_internals().acc_change
+    }
+
+    fn acc_change(&mut self, delta: f32) {
+        self.get_abm_internals().acc_change += delta;
+    }
+
+    fn get_num_agents(&self) -> u32 {
+        self.get_agents().len() as u32
+    }
+
+    fn relax(&mut self) {
+        self.get_abm_internals().acc_change = ACC_EPS;
+
+        // println!("{:?}", self.agents);
+        while self.get_abm_internals().acc_change >= ACC_EPS {
+            self.get_abm_internals().acc_change = 0.;
+            self.sweep();
+        }
+    }
 
     fn gen_init_opinion(&mut self) -> f32 {
         match self.get_population_model() {
@@ -454,6 +510,190 @@ pub trait ABM {
                 output='out,
             )
         });
+
+        Ok(())
+    }
+
+    /// A cluster are agents whose distance is less than EPS
+    fn list_clusters(&self) -> Vec<Vec<Agent>> {
+        let mut clusters: Vec<Vec<Agent>> = Vec::new();
+        'agent: for i in self.get_agents() {
+            for c in &mut clusters {
+                if (i.opinion - c[0].opinion).abs() < EPS {
+                    c.push(i.clone());
+                    continue 'agent;
+                }
+            }
+            clusters.push(vec![i.clone(); 1])
+        }
+        clusters
+    }
+
+    fn cluster_sizes(&self) -> Vec<usize> {
+        let clusters = self.list_clusters();
+        clusters.iter()
+            .map(|c| c.len() as usize)
+            .collect()
+    }
+
+    fn cluster_max(&self) -> usize {
+        let clusters = self.list_clusters();
+        clusters.iter()
+            .map(|c| c.len() as usize)
+            .max()
+            .unwrap()
+    }
+
+    fn write_cluster_sizes(&self, file: &mut File) -> std::io::Result<()> {
+        let clusters = self.list_clusters();
+
+        let string_list = clusters.iter()
+            .map(|c| c[0].opinion)
+            .join(" ");
+        writeln!(file, "# {}", string_list)?;
+
+        let string_list = clusters.iter()
+            .map(|c| c.len().to_string())
+            .join(" ");
+        writeln!(file, "{}", string_list)?;
+        Ok(())
+    }
+
+    fn add_state_to_density(&mut self) {
+        if self.get_time() > THRESHOLD {
+            return
+        }
+
+        for i in 0..DENSITYBINS {
+            self.get_abm_internals().density_slice[i] = 0;
+        }
+
+        for i in self.get_agents() {
+            self.get_abm_internals().density_slice[(i.opinion*DENSITYBINS as f32) as usize] += 1;
+        }
+        if self.get_abm_internals().dynamic_density.len() <= self.get_time() {
+            self.get_abm_internals().dynamic_density.push(self.get_abm_internals().density_slice.clone());
+        } else {
+            for i in 0..DENSITYBINS {
+                self.get_abm_internals().dynamic_density[self.get_time()][i] += self.get_abm_internals().density_slice[i];
+            }
+        }
+
+        let entropy = self.get_abm_internals().density_slice.iter().map(|x| {
+            let p = *x as f32 / self.get_num_agents() as f32;
+            if x > &0 {-p * p.ln()} else {0.}
+        }).sum();
+
+        if self.get_abm_internals().entropies_acc.len() <= self.get_time() {
+            self.get_abm_internals().entropies_acc.push(entropy)
+        } else {
+            self.get_abm_internals().entropies_acc[self.get_time()] += entropy;
+        }
+    }
+
+    fn fill_density(&mut self) {
+        let mut j = self.get_time();
+        while j < THRESHOLD {
+            if self.get_abm_internals().dynamic_density.len() <= j {
+                self.get_abm_internals().dynamic_density.push(self.get_abm_internals().density_slice.clone());
+            } else {
+                for i in 0..DENSITYBINS {
+                    self.get_abm_internals().dynamic_density[j][i] += self.get_abm_internals().density_slice[i];
+                }
+            }
+
+            let entropy = self.get_abm_internals().density_slice.iter().map(|x| {
+                let p = *x as f32 / self.get_num_agents() as f32;
+                if x > &0 {-p * p.ln()} else {0.}
+            }).sum();
+            if self.get_abm_internals().entropies_acc.len() <= j {
+                self.get_abm_internals().entropies_acc.push(entropy);
+            } else {
+                self.get_abm_internals().entropies_acc[j] += entropy;
+            }
+
+            j += 1;
+        }
+    }
+
+    fn write_density(&self, file: &mut File) -> std::io::Result<()> {
+            let string_list = self.get_abm_internals().dynamic_density.iter()
+            .map(|x| x.iter().join(" "))
+            .join("\n");
+        writeln!(file, "{}", string_list)
+    }
+
+    fn write_entropy(&self, file: &mut File) -> std::io::Result<()> {
+        let string_list = self.get_abm_internals().entropies_acc.iter()
+            .map(|x| x.to_string())
+            .join("\n");
+        writeln!(file, "{}", string_list)
+    }
+
+    fn write_state(&self, file: &mut File) -> std::io::Result<()> {
+        let string_list = self.get_agents().iter()
+            .map(|j| j.opinion.to_string())
+            .join(" ");
+        writeln!(file, "{}", string_list)
+    }
+
+    fn write_gp(&self, file: &mut File, outfilename: &str) -> std::io::Result<()> {
+        writeln!(file, "set terminal pngcairo")?;
+        writeln!(file, "set output '{}.png'", outfilename)?;
+        writeln!(file, "set xl 't'")?;
+        writeln!(file, "set yl 'x_i'")?;
+        write!(file, "p '{}' u 0:1 w l not, ", outfilename)?;
+
+        let string_list = (2..self.get_num_agents())
+            .map(|j| format!("'' u 0:{} w l not,", j))
+            .join(" ");
+        write!(file, "{}", string_list)
+    }
+
+    fn write_topology_info(&self, file: &mut File) -> std::io::Result<()> {
+        let (num_components, lcc_num, lcc, mean_degree) = match self.get_topology() {
+            TopologyRealization::None => (1, 1, self.get_num_agents() as usize, self.get_num_agents() as f64 - 1.),
+            TopologyRealization::Graph(g) => {
+                let (num, size) = size_largest_connected_component(&g);
+
+                let d = 2. * g.edge_count() as f64 / g.node_count() as f64;
+
+                (connected_components(&g), num, size, d)
+            },
+            TopologyRealization::Hypergraph(g) => {
+                (0, 0, 0, g.mean_deg())
+            }
+            ,
+        };
+
+        // TODO: save more information: size of the largest component, ...
+        writeln!(file, "{} {} {} {}", num_components, lcc_num, lcc, mean_degree)
+        // println!("n {}, c {}, p {}, m {}, num components: {:?}", n, c, p, m, components);
+    }
+
+    fn write_state_png(&self, path: &Path) -> std::io::Result<()> {
+        let file = File::create(path).unwrap();
+
+        let ref mut w = BufWriter::new(file);
+        let gradient = colorous::VIRIDIS;
+
+        let n = self.get_num_agents();
+        let m = (n as f64).sqrt() as u32;
+        assert!(m*m == n);
+
+        let mut encoder = png::Encoder::new(w, m, m); // Width is 2 pixels and height is 1.
+        encoder.set_color(png::ColorType::RGB);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+
+        let data: Vec<Vec<u8>> = self.get_agents().iter().map(|i| {
+            let gr = gradient.eval_continuous(i.opinion as f64);
+            vec![gr.r, gr.g, gr.b]
+        }).collect();
+
+        let data: Vec<u8> = data.into_iter().flatten().collect();
+
+        writer.write_image_data(&data).unwrap();
 
         Ok(())
     }
