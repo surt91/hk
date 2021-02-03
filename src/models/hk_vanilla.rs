@@ -660,7 +660,7 @@ impl HegselmannKrause {
                         if max - min < mintol {
                             tmp += sum / len as f32;
                             count += 1;
-                    }
+                        }
                     }
                     // if there are no compatible edges, change nothing (and avoid dividing by zero)
                     if count == 0 {
@@ -998,25 +998,25 @@ impl HegselmannKrause {
         match &self.topology {
             TopologyRealization::Graph(g) => {
                 colors = self.agents.iter().map(|i| {
-            let gr = gradient.eval_continuous(i.opinion as f64);
-            vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
-        }).collect();
+                    let gr = gradient.eval_continuous(i.opinion as f64);
+                    vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
+                }).collect();
                 edgelist = if active {
-                g.edge_indices()
-                    .map(|e| {
-                        let (u, v) = g.edge_endpoints(e).unwrap();
-                        vec![u.index(), v.index()]
-                    })
-                    .filter(|v| (self.agents[v[0]].opinion - self.agents[v[1]].opinion).abs() <= self.agents[v[0]].tolerance)
-                    .collect()
-            } else {
-                g.edge_indices()
-                    .map(|e| {
-                        let (u, v) = g.edge_endpoints(e).unwrap();
-                        vec![u.index(), v.index()]
-                    })
-                    .collect()
-            };
+                    g.edge_indices()
+                        .map(|e| {
+                            let (u, v) = g.edge_endpoints(e).unwrap();
+                            vec![u.index(), v.index()]
+                        })
+                        .filter(|v| (self.agents[v[0]].opinion - self.agents[v[1]].opinion).abs() <= self.agents[v[0]].tolerance)
+                        .collect()
+                } else {
+                    g.edge_indices()
+                        .map(|e| {
+                            let (u, v) = g.edge_endpoints(e).unwrap();
+                            vec![u.index(), v.index()]
+                        })
+                        .collect()
+                };
             }
             TopologyRealization::Hypergraph(h) => {
                 colors = self.agents.iter().map(|i| {
@@ -1057,42 +1057,42 @@ impl HegselmannKrause {
             }
         }
 
-            py.run(python! {
-                import graph_tool.all as gt
+        py.run(python! {
+            import graph_tool.all as gt
 
             if len('edgelist) == 0:
                 print("Warning: There are no edges in this graph, do not render anything!")
 
-                g = None
-                if g is None:
-                    g = gt.Graph(directed=False)
-                    g.add_edge_list('edgelist)
-                    pos = gt.sfdp_layout(g)
-                else:
-                    g.clear_edges()
-                    g.add_edge_list('edgelist)
+            g = None
+            if g is None:
+                g = gt.Graph(directed=False)
+                g.add_edge_list('edgelist)
+                pos = gt.sfdp_layout(g)
+            else:
+                g.clear_edges()
+                g.add_edge_list('edgelist)
 
-                colors = g.new_vp("vector<double>")
+            colors = g.new_vp("vector<double>")
             sizes = g.new_vp("double")
             shapes = g.new_vp("int")
-                for n, c in enumerate('colors):
-                    colors[n] = c
+            for n, c in enumerate('colors):
+                colors[n] = c
                 sizes[n] = 3 if c == [1., 0., 0., 1.] else 20
                 shapes[n] = 0 if c == [1., 0., 0., 1.] else 2
 
-                gt.graph_draw(
-                    g,
-                    pos=pos,
+            gt.graph_draw(
+                g,
+                pos=pos,
                 vertex_shape=shapes,
                 vertex_size=sizes,
-                    vertex_fill_color=colors,
-                    edge_color=[0.7, 0.7, 0.7, 0.5],
-                    bg_color=[1., 1., 1., 1.],
-                    output_size=(1920, 1920),
-                    adjust_aspect=False,
-                    output='out,
-                )
-            });
+                vertex_fill_color=colors,
+                edge_color=[0.7, 0.7, 0.7, 0.5],
+                bg_color=[1., 1., 1., 1.],
+                output_size=(1920, 1920),
+                adjust_aspect=False,
+                output='out,
+            )
+        });
 
         Ok(())
     }
