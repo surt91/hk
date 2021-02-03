@@ -1,7 +1,7 @@
 extern crate hk;
-use hk::HegselmannKrauseBuilder;
+use hk::ABMBuilder;
 
-use hk::{Model, CostModel, PopulationModel};
+use hk::{CostModel, PopulationModel};
 
 #[cfg(test)]
 mod tests {
@@ -10,14 +10,14 @@ mod tests {
 
     #[test]
     fn test_cmp_naive_bisect() {
-        let mut hk1 = HegselmannKrauseBuilder::new(100)
+        let mut hk1 = ABMBuilder::new(100)
             .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
-            .build();
-        let mut hk2 = HegselmannKrauseBuilder::new(100)
+            .hk();
+        let mut hk2 = ABMBuilder::new(100)
             .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
-            .build();
+            .hk();
 
         for _ in 0..100 {
             // println!("{}", i);
@@ -31,14 +31,14 @@ mod tests {
 
     #[test]
     fn test_cmp_sync() {
-        let mut hk1 = HegselmannKrauseBuilder::new(100)
+        let mut hk1 = ABMBuilder::new(100)
             .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
-            .build();
-        let mut hk2 = HegselmannKrauseBuilder::new(100)
+            .hk();
+        let mut hk2 = ABMBuilder::new(100)
             .population_model(PopulationModel::Uniform(0., 1.))
             .seed(13)
-            .build();
+            .hk();
 
         for _ in 0..100 {
             hk1.sweep_synchronous_naive();
@@ -46,31 +46,6 @@ mod tests {
             // println!("naive:  {:?}", hk1);
             // println!("bisect: {:?}", hk2);
             assert!(hk1 == hk2);
-        }
-    }
-
-    #[test]
-    fn test_cmp_energy() {
-        use rand::SeedableRng;
-        use rand_pcg::Pcg64;
-        let mut rng = Pcg64::seed_from_u64(42);
-
-        let mut hk = HegselmannKrauseBuilder::new(100)
-            .seed(13)
-            .population_model(PopulationModel::Uniform(0., 1.))
-            .cost_model(CostModel::Annealing(0.5))
-            .build();
-
-        hk.init_ji();
-        for i in 0..100 {
-            let (idx, old, new) = hk.change(&mut rng);
-            let e1 = hk.energy();
-            let e2 = hk.energy_incremental(idx, old, new);
-            // println!("naive:  {:?}", hk1);
-            // println!("bisect: {:?}", hk2);
-            println!("{}: {}: {} -> {}", i, idx, old, new);
-            println!("{} {}", e1, e2);
-            assert!((e1 - e2).abs() < 1e-4);
         }
     }
 }

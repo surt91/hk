@@ -4,14 +4,14 @@ extern crate criterion;
 use criterion::Criterion;
 
 extern crate hk;
-use hk::HegselmannKrauseBuilder;
+use hk::{ABM, ABMBuilder};
 use hk::PopulationModel;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut hk = HegselmannKrauseBuilder::new(100)
+    let mut hk = ABMBuilder::new(100)
         .seed(13)
         .population_model(PopulationModel::Uniform(0., 1.))
-        .build();
+        .hk();
 
     hk.reset();
     c.bench_function("hk N=1000 sweep", |b| b.iter(|| hk.sweep()));
