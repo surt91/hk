@@ -135,8 +135,12 @@ impl ABM for HegselmannKrause {
         self.time = 0;
     }
 
-    fn get_abm_internals(&mut self) -> &mut ABMinternals {
+    fn get_mut_abm_internals(&mut self) -> &mut ABMinternals {
         &mut self.abm_internals
+    }
+
+    fn get_abm_internals(&self) -> &ABMinternals {
+        &self.abm_internals
     }
 
     fn get_population_model(&self) -> PopulationModel {

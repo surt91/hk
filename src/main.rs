@@ -10,20 +10,15 @@ use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
-use hk::{ABM, ABMBuilder};
+use hk::{ABM, ABMBuilder, ACC_EPS};
 use hk::HegselmannKrause;
-use hk::HegselmannKrauseLorenz;
-use hk::HegselmannKrauseLorenzSingle;
-use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel, DegreeDist};
+use hk::{CostModel, ResourceModel, PopulationModel, TopologyModel, DegreeDist};
 use hk::models::graph;
-
 
 use largedev::{Metropolis, WangLandau};
 
 use git_version::git_version;
 const GIT_VERSION: &str = git_version!();
-
-const ACC_EPS: f32 = 1e-3;
 
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt)]
@@ -152,16 +147,11 @@ struct Opt {
     /// number of times to repeat the simulation
     samples: u32,
 
-    #[structopt(short, long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"])]
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "3", "5", "9", "10"])]
     /// which model to simulate:{n}
     /// 1 -> Hegselmann Krause{n}
-    /// 2 -> multidimensional Hegselmann Krause (Lorenz){n}
     /// 3 -> HK with active cost{n}
-    /// 4 -> multidimensional Hegselmann Krause (Lorenz) but only updating one dimension{n}
     /// 5 -> HK with passive cost{n}
-    /// 6 -> HK annealing with cost and resources{n}
-    /// 7 -> HK annealing with local energy{n}
-    /// 8 -> HK annealing with constant temperature{n}
     /// 9 -> Deffuant Weisbuch{n}
     /// 10 -> Only topology information{n}
     model: u32,
@@ -516,12 +506,12 @@ fn main() -> std::io::Result<()> {
                         hk.sweep();
                     }
 
-                    if hk.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
+                    if hk.get_acc_change() < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
                         writeln!(out_cluster.file(), "# sweeps: {}", ctr)?;
                         hk.fill_density();
                         break;
                     }
-                    hk.acc_change = 0.;
+                    hk.acc_change_reset();
                 }
                 hk.write_cluster_sizes(&mut out_cluster.file())?;
                 hk.write_cluster_sizes_nopoor(&mut out_nopoor.file())?;
@@ -598,12 +588,12 @@ fn main() -> std::io::Result<()> {
                         dw.sweep();
                     }
 
-                    if dw.acc_change < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
+                    if dw.get_acc_change() < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
                         writeln!(out_cluster.file(), "# sweeps: {}", ctr)?;
                         dw.fill_density();
                         break;
                     }
-                    dw.acc_change = 0.;
+                    dw.acc_change_reset();
                 }
                 dw.write_cluster_sizes(&mut out_cluster.file())?;
                 dw.write_topology_info(&mut out_topology.file())?;
@@ -623,208 +613,6 @@ fn main() -> std::io::Result<()> {
             out_topology.finalize()?;
             out_info.finalize()?;
             out_detailed.finalize()?;
-
-            Ok(())
-        },
-        2 => {
-            let mut hk = HegselmannKrauseLorenz::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
-
-            let mut out_data = Output::new(&args.outname, "dat", &args.tmp)?;
-            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
-            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
-
-            // simulate until converged
-            if args.iterations == 0 {
-                for _ in 0..args.samples {
-                    hk.reset();
-                    let mut ctr = 0;
-                    loop {
-                        // test if we are converged
-                        ctr += 1;
-                        hk.sweep();
-                        // hk.sweep_synchronous();
-                        if hk.acc_change < ACC_EPS {
-                            writeln!(out_data.file(), "# sweeps: {}", ctr)?;
-                            // hk.write_equilibrium(&mut output)?;
-                            hk.write_cluster_sizes(&mut out_cluster.file())?;
-                            break;
-                        }
-                        hk.acc_change = 0.;
-                    }
-                }
-
-            }
-            // } else {
-            //     unimplemented!();
-            //     let mut gp = File::create(args.outname.with_extension("gp"))?;
-            //     hk.write_gp(&mut gp, dataname.to_str().unwrap())?;
-            //     for _ in 0..args.iterations {
-            //         hk.sweep();
-            //
-            //         hk.acc_change = 0.;
-            //         hk.write_state(&mut output)?;
-            //     }
-            //     hk.write_cluster_sizes(&mut output_cluster)?;
-            // }
-            hk.write_density(&mut out_density.file())?;
-
-            out_data.finalize()?;
-            out_cluster.finalize()?;
-            out_density.finalize()?;
-
-            Ok(())
-        },
-        4 => {
-            let mut hk = HegselmannKrauseLorenzSingle::new(args.num_agents, args.min_tolerance as f32, args.max_tolerance as f32, args.dimension, args.seed);
-
-            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
-            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
-
-            for _ in 0..args.samples {
-                hk.reset();
-                // let mut ctr = 0;
-                for _ in 0..args.iterations {
-                    // test if we are converged
-                    // ctr += 1;
-                    hk.sweep();
-                    // hk.sweep_synchronous();
-                    // if hk.acc_change < 1e-7 {
-                    //     write!(output, "# sweeps: {}\n", ctr)?;
-                    //     // hk.write_equilibrium(&mut output)?;
-                    //     hk.write_cluster_sizes(&mut output_cluster)?;
-                    //     break;
-                    // }
-                    hk.acc_change = 0.;
-                }
-                hk.write_cluster_sizes(&mut out_cluster.file())?;
-            }
-            hk.write_density(&mut out_density.file())?;
-
-            out_cluster.finalize()?;
-            out_density.finalize()?;
-
-            Ok(())
-        },
-        6 => {
-            let mut hk = ABMBuilder::new(
-                args.num_agents,
-            ).seed(args.seed)
-            .cost_model(CostModel::Annealing(args.eta as f32))
-            .resource_model(resource_model)
-            .population_model(pop_model)
-            .hk();
-
-            let mut rng = Pcg64::seed_from_u64(args.seed);
-
-            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
-            let mut out_energy = Output::new(&args.outname, "energy.dat", &args.tmp)?;
-            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
-            let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
-
-            for _n in 0..args.samples {
-                let schedule = Exponential::new(args.iterations as usize, 3., 0.98);
-                // let schedule = Linear::new(args.iterations as usize, 0.1);
-                // let schedule = Linear::new(args.iterations as usize, 0.);
-                hk.reset();
-                let e = anneal(&mut hk, schedule, &mut rng);
-                writeln!(out_energy.file(), "{}", e)?;
-
-                if args.scc {
-                    let clusters = cluster_sizes_from_graph(&hk);
-                    write_cluster_sizes(&clusters, &mut out_cluster.file())?;
-                    write_entropy(&clusters, &mut out_entropy.file())?;
-                } else {
-                    hk.write_cluster_sizes(&mut out_cluster.file())?;
-                }
-
-                // vis_hk_as_graph(&hk, &args.outname.with_extension(format!("{}.dot", n)))?;
-                // println!("{}", hk.agents.iter().filter(|x| x.resources > 0.).count())
-            }
-
-            hk.write_density(&mut out_density.file())?;
-
-            out_cluster.finalize()?;
-            out_energy.finalize()?;
-            out_density.finalize()?;
-            out_entropy.finalize()?;
-
-            Ok(())
-        },
-        7 => {
-            let mut hk = ABMBuilder::new(
-                args.num_agents,
-            ).seed(args.seed)
-            .cost_model(CostModel::Annealing(args.eta as f32))
-            .resource_model(resource_model)
-            .population_model(pop_model)
-            .hk();
-
-            let mut rng = Pcg64::seed_from_u64(args.seed);
-
-            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
-            let mut out_energy = Output::new(&args.outname, "energy.dat", &args.tmp)?;
-            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
-
-            for _ in 0..args.samples {
-                let schedule = Exponential::new(args.iterations as usize, 3., 0.98);
-                // let schedule = Linear::new(args.iterations as usize, 0.1);
-                // let schedule = Linear::new(args.iterations as usize, 0.);
-                hk.reset();
-                let e = local_anneal(&mut hk, schedule, &mut rng);
-                writeln!(out_energy.file(), "{}", e)?;
-                hk.write_cluster_sizes(&mut out_cluster.file())?;
-            }
-
-            hk.write_density(&mut out_density.file())?;
-
-            out_cluster.finalize()?;
-            out_energy.finalize()?;
-            out_density.finalize()?;
-
-            Ok(())
-        },
-        8 => {
-            let mut hk = ABMBuilder::new(
-                args.num_agents,
-            ).seed(args.seed)
-            .cost_model(CostModel::Annealing(args.eta as f32))
-            .resource_model(resource_model)
-            .population_model(pop_model)
-            .hk();
-
-            let mut rng = Pcg64::seed_from_u64(args.seed);
-
-            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
-            let mut out_energy = Output::new(&args.outname, "energy.dat", &args.tmp)?;
-            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
-            let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
-            let mut out_changes = Output::new(&args.outname, "changes.dat", &args.tmp)?;
-
-            for _n in 0..args.samples {
-                let schedule = Constant::new(args.temperature as f32, args.iterations as usize);
-                hk.reset();
-                for t in schedule {
-                    hk.acc_change = 0.;
-                    let e = anneal_sweep(&mut hk, &mut rng, t);
-                    writeln!(out_energy.file(), "{}", e)?;
-                    writeln!(out_changes.file(), "{}", hk.acc_change)?;
-                    hk.add_state_to_density();
-                    hk.time += 1;
-                }
-
-                // hk.write_cluster_sizes(&mut output)?;
-                let clusters = cluster_sizes_from_graph(&hk);
-                write_cluster_sizes(&clusters, &mut out_cluster.file())?;
-                write_entropy(&clusters, &mut out_entropy.file())?;
-            }
-
-            hk.write_density(&mut out_density.file())?;
-
-            out_cluster.finalize()?;
-            out_energy.finalize()?;
-            out_density.finalize()?;
-            out_entropy.finalize()?;
-            out_changes.finalize()?;
 
             Ok(())
         },

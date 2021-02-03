@@ -35,9 +35,9 @@ use itertools::Itertools;
 use petgraph::algo::connected_components;
 
 pub const EPS: f32 = 2e-3;
+pub const ACC_EPS: f32 = 1e-3;
 /// maximal time to save density information for
 const THRESHOLD: usize = 400;
-const ACC_EPS: f32 = 1e-3;
 const DENSITYBINS: usize = 100;
 
 #[derive(PartialEq, Clone)]
@@ -162,7 +162,7 @@ fn stretch(x: f32, low: f32, high: f32) -> f32 {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct ABMinternals {
+pub struct ABMinternals {
     acc_change: f32,
     dynamic_density: Vec<Vec<u64>>,
     entropies_acc: Vec<f32>,
@@ -194,14 +194,19 @@ pub trait ABM {
     fn get_time(&self) -> usize;
     fn get_rng(&mut self) -> &mut Pcg64;
 
-    fn get_abm_internals(&mut self) -> &mut ABMinternals;
+    fn get_mut_abm_internals(&mut self) -> &mut ABMinternals;
+    fn get_abm_internals(&self) -> &ABMinternals;
 
-    fn get_acc_change(&self) -> f32 {
+    fn get_acc_change(&mut self) -> f32 {
         self.get_abm_internals().acc_change
     }
 
     fn acc_change(&mut self, delta: f32) {
-        self.get_abm_internals().acc_change += delta;
+        self.get_mut_abm_internals().acc_change += delta;
+    }
+
+    fn acc_change_reset(&mut self) {
+        self.get_mut_abm_internals().acc_change = 0.;
     }
 
     fn get_num_agents(&self) -> u32 {
@@ -209,11 +214,11 @@ pub trait ABM {
     }
 
     fn relax(&mut self) {
-        self.get_abm_internals().acc_change = ACC_EPS;
+        self.get_mut_abm_internals().acc_change = ACC_EPS;
 
         // println!("{:?}", self.agents);
         while self.get_abm_internals().acc_change >= ACC_EPS {
-            self.get_abm_internals().acc_change = 0.;
+            self.get_mut_abm_internals().acc_change = 0.;
             self.sweep();
         }
     }
@@ -529,6 +534,22 @@ pub trait ABM {
         clusters
     }
 
+    fn list_clusters_nopoor(&self) -> Vec<Vec<Agent>> {
+        let mut clusters: Vec<Vec<Agent>> = Vec::new();
+        'agent: for i in self.get_agents() {
+            for c in &mut clusters {
+                if (i.opinion - c[0].opinion).abs() < EPS && i.resources > 1e-4 {
+                    c.push(i.clone());
+                    continue 'agent;
+                }
+            }
+            if i.resources > 1e-4 {
+                clusters.push(vec![i.clone(); 1])
+            }
+        }
+        clusters
+    }
+
     fn cluster_sizes(&self) -> Vec<usize> {
         let clusters = self.list_clusters();
         clusters.iter()
@@ -559,23 +580,41 @@ pub trait ABM {
         Ok(())
     }
 
+    fn write_cluster_sizes_nopoor(&self, file: &mut File) -> std::io::Result<()> {
+        let clusters = self.list_clusters_nopoor();
+
+        let string_list = clusters.iter()
+            .map(|c| c[0].opinion)
+            .join(" ");
+        writeln!(file, "# {}", string_list)?;
+
+        let string_list = clusters.iter()
+            .map(|c| c.len().to_string())
+            .join(" ");
+        writeln!(file, "{}", string_list)?;
+        Ok(())
+    }
+
     fn add_state_to_density(&mut self) {
         if self.get_time() > THRESHOLD {
             return
         }
 
         for i in 0..DENSITYBINS {
-            self.get_abm_internals().density_slice[i] = 0;
+            self.get_mut_abm_internals().density_slice[i] = 0;
         }
 
-        for i in self.get_agents() {
-            self.get_abm_internals().density_slice[(i.opinion*DENSITYBINS as f32) as usize] += 1;
+        for i in 0..self.get_num_agents() {
+            let op = self.get_agents()[i as usize].opinion;
+            self.get_mut_abm_internals().density_slice[(op*DENSITYBINS as f32) as usize] += 1;
         }
         if self.get_abm_internals().dynamic_density.len() <= self.get_time() {
-            self.get_abm_internals().dynamic_density.push(self.get_abm_internals().density_slice.clone());
+            let slice = self.get_abm_internals().density_slice.clone();
+            self.get_mut_abm_internals().dynamic_density.push(slice);
         } else {
+            let t = self.get_time();
             for i in 0..DENSITYBINS {
-                self.get_abm_internals().dynamic_density[self.get_time()][i] += self.get_abm_internals().density_slice[i];
+                self.get_mut_abm_internals().dynamic_density[t][i] += self.get_abm_internals().density_slice[i];
             }
         }
 
@@ -585,9 +624,10 @@ pub trait ABM {
         }).sum();
 
         if self.get_abm_internals().entropies_acc.len() <= self.get_time() {
-            self.get_abm_internals().entropies_acc.push(entropy)
+            self.get_mut_abm_internals().entropies_acc.push(entropy)
         } else {
-            self.get_abm_internals().entropies_acc[self.get_time()] += entropy;
+            let t = self.get_time();
+            self.get_mut_abm_internals().entropies_acc[t] += entropy;
         }
     }
 
@@ -595,10 +635,11 @@ pub trait ABM {
         let mut j = self.get_time();
         while j < THRESHOLD {
             if self.get_abm_internals().dynamic_density.len() <= j {
-                self.get_abm_internals().dynamic_density.push(self.get_abm_internals().density_slice.clone());
+                let slice = self.get_abm_internals().density_slice.clone();
+                self.get_mut_abm_internals().dynamic_density.push(slice);
             } else {
                 for i in 0..DENSITYBINS {
-                    self.get_abm_internals().dynamic_density[j][i] += self.get_abm_internals().density_slice[i];
+                    self.get_mut_abm_internals().dynamic_density[j][i] += self.get_abm_internals().density_slice[i];
                 }
             }
 
@@ -607,9 +648,9 @@ pub trait ABM {
                 if x > &0 {-p * p.ln()} else {0.}
             }).sum();
             if self.get_abm_internals().entropies_acc.len() <= j {
-                self.get_abm_internals().entropies_acc.push(entropy);
+                self.get_mut_abm_internals().entropies_acc.push(entropy);
             } else {
-                self.get_abm_internals().entropies_acc[j] += entropy;
+                self.get_mut_abm_internals().entropies_acc[j] += entropy;
             }
 
             j += 1;
@@ -674,7 +715,7 @@ pub trait ABM {
     fn write_state_png(&self, path: &Path) -> std::io::Result<()> {
         let file = File::create(path).unwrap();
 
-        let ref mut w = BufWriter::new(file);
+        let w = &mut BufWriter::new(file);
         let gradient = colorous::VIRIDIS;
 
         let n = self.get_num_agents();

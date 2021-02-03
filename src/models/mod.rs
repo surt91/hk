@@ -1,26 +1,16 @@
-mod hk_vanilla;
+mod hegselmann;
 mod deffuant;
-mod hk_lorenz;
-mod hk_lorenz_singleupdate;
+
 mod abm;
 pub mod graph;
 pub mod hypergraph;
 
-mod simulated_annealing;
-mod local_simulated_annealing;
-
 
 pub use abm::ABM;
-pub use abm::{Agent, CostModel, ResourceModel, PopulationModel, TopologyModel, TopologyRealization, DegreeDist, EPS};
+pub use abm::{Agent, CostModel, ResourceModel, PopulationModel, TopologyModel, TopologyRealization, DegreeDist};
+pub use abm::{EPS, ACC_EPS};
 pub use abm::ABMBuilder;
 
-pub use hk_vanilla::HegselmannKrause;
-
-pub use hk_lorenz::HegselmannKrauseLorenz;
-pub use hk_lorenz_singleupdate::HegselmannKrauseLorenzSingle;
+pub use hegselmann::HegselmannKrause;
 
 pub use deffuant::Deffuant;
-
-pub use simulated_annealing::{anneal, anneal_sweep};
-pub use simulated_annealing::{Exponential, Linear, Constant, Model};
-pub use local_simulated_annealing::local_anneal;
