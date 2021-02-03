@@ -127,6 +127,8 @@ pub enum TopologyModel {
     HyperERSC(f64, usize),
     /// uniform HyperBA
     HyperBA(usize, usize),
+    /// uniform HyperER with two sizes of hyperedges
+    HyperER2(f64, f64, usize, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -458,6 +460,13 @@ impl HegselmannKrause {
             TopologyModel::HyperBA(m, k) => {
                 let n = self.agents.len();
                 let g = build_hyper_uniform_ba(n, *m, *k, &mut self.rng);
+
+                TopologyRealization::Hypergraph(g)
+            },
+            TopologyModel::HyperER2(c1, c2, k1, k2) => {
+                let n = self.agents.len();
+                let mut g = build_hyper_uniform_er(n, *c1, *k1, &mut self.rng);
+                g.add_er_hyperdeges(*c2, *k2, &mut self.rng);
 
                 TopologyRealization::Hypergraph(g)
             },

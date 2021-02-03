@@ -31,6 +31,32 @@ impl Hypergraph {
             .map(|i| self.factor_graph.neighbors(i).count())
             .collect()
     }
+
+
+    pub fn add_er_hyperdeges(&mut self, c: f64, k: usize, mut rng: &mut impl Rng) {
+        // roll dice how many edges there should be
+        let g = &mut self.factor_graph;
+        let n = self.node_nodes.len();
+        let p = c / (2.*n_choose_k(n, k) as f64 / n as f64);
+        let binom = Binomial::new(n_choose_k(n, k) as u64, p).unwrap();
+        let m = binom.sample(&mut rng) as usize;
+        let start_ctr = self.ctr;
+
+        // draw m many k-tuples of nodes and add them as edges (=factor-nodes)
+        while self.ctr < m + start_ctr {
+            let idx: Set<usize> = (0..k).map(|_| rng.gen_range(0, n)).collect();
+
+            if idx.len() == k && !self.edge_set.contains(&idx) {
+                let j = g.add_node(n + self.ctr);
+                self.edge_nodes.push(j);
+                for i in &idx {
+                    g.add_edge(self.node_nodes[*i], j, 1);
+                }
+                self.ctr += 1;
+                self.edge_set.insert(idx);
+            }
+        }
+    }
 }
 
 fn n_choose_k(n: usize, k: usize) -> usize {
@@ -52,29 +78,17 @@ pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng
     let binom = Binomial::new(n_choose_k(n, k) as u64, p).unwrap();
     let m = binom.sample(&mut rng) as usize;
 
-    // draw m many k-tuples of nodes and add them as edges (=factor-nodes)
-    let mut ctr = 0;
-    while ctr < m {
-        let idx: Set<usize> = (0..k).map(|_| rng.gen_range(0, n)).collect();
-
-        if idx.len() == k && !edge_set.contains(&idx) {
-            let j = g.add_node(n + ctr);
-            edge_array.push(j);
-            for i in &idx {
-                g.add_edge(node_array[*i], j, 1);
-            }
-            ctr += 1;
-            edge_set.insert(idx);
-        }
-    }
-
-    Hypergraph {
+    let mut h = Hypergraph {
         factor_graph: g,
         node_nodes: node_array,
         edge_nodes: edge_array,
         edge_set,
-        ctr,
-    }
+        ctr: 0,
+    };
+
+    h.add_er_hyperdeges(c, k, &mut rng);
+
+    h
 }
 
 pub fn build_hyper_uniform_ba(n: usize, m: usize, k: usize, mut rng: &mut impl Rng) -> Hypergraph {

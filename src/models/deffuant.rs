@@ -179,6 +179,8 @@ impl fmt::Debug for Deffuant {
 
 impl Deffuant {
 
+    // TODO: separate common functions with HK into a AgentBased Trait
+
     fn stretch(x: f32, low: f32, high: f32) -> f32 {
         x*(high-low)+low
     }
@@ -325,6 +327,13 @@ impl Deffuant {
             TopologyModel::HyperBA(m, k) => {
                 let n = self.agents.len();
                 let g = build_hyper_uniform_ba(n, *m, *k, &mut self.rng);
+
+                TopologyRealization::Hypergraph(g)
+            },
+            TopologyModel::HyperER2(c1, c2, k1, k2) => {
+                let n = self.agents.len();
+                let mut g = build_hyper_uniform_er(n, *c1, *k1, &mut self.rng);
+                g.add_er_hyperdeges(*c2, *k2, &mut self.rng);
 
                 TopologyRealization::Hypergraph(g)
             },
