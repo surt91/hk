@@ -101,6 +101,32 @@ impl fmt::Debug for Deffuant {
 }
 
 impl ABM for Deffuant {
+    fn sweep(&mut self) {
+        for _ in 0..self.num_agents {
+            self.step_naive()
+        }
+        self.add_state_to_density();
+        self.time += 1;
+    }
+
+    fn reset(&mut self) {
+        self.agents = (0..self.num_agents).map(|_| {
+            let xi = self.gen_init_opinion();
+            let ei = self.gen_init_tolerance();
+            Agent::new(
+                xi,
+                ei,
+                0.,
+            )
+        }).collect();
+
+        self.agents_initial = self.agents.clone();
+
+        self.topology = self.gen_init_topology();
+
+        self.time = 0;
+    }
+
     fn get_population_model(&self) -> PopulationModel {
         self.population_model.clone()
     }
@@ -123,31 +149,6 @@ impl ABM for Deffuant {
 }
 
 impl Deffuant {
-
-    // TODO: separate common functions with HK into a AgentBased Trait
-
-    pub fn reset(&mut self) {
-        self.agents = (0..self.num_agents).map(|_| {
-            let xi = self.gen_init_opinion();
-            let ei = self.gen_init_tolerance();
-            Agent::new(
-                xi,
-                ei,
-                0.,
-            )
-        }).collect();
-
-        self.agents_initial = self.agents.clone();
-
-        self.topology = self.gen_init_topology();
-
-        // println!("min:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).min().unwrap());
-        // println!("max:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).max().unwrap());
-        // println!("mean: {}", self.agents.iter().map(|x| x.resources).sum::<f32>() / self.agents.len() as f32);
-
-        self.time = 0;
-    }
-
     pub fn step_naive(&mut self) {
         let old_opinion;
         let new_opinion = match &self.topology {
@@ -229,13 +230,7 @@ impl Deffuant {
         self.acc_change += (old_opinion - new_opinion).abs();
     }
 
-    pub fn sweep(&mut self) {
-        for _ in 0..self.num_agents {
-            self.step_naive()
-        }
-        self.add_state_to_density();
-        self.time += 1;
-    }
+
 
     /// A cluster are agents whose distance is less than EPS
     fn list_clusters(&self) -> Vec<Vec<Agent>> {

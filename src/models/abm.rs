@@ -152,6 +152,8 @@ fn stretch(x: f32, low: f32, high: f32) -> f32 {
 }
 
 pub trait ABM {
+    fn sweep(&mut self);
+    fn reset(&mut self);
 
     // getter methods to access fields
     fn get_population_model(&self) -> PopulationModel;

@@ -122,6 +122,38 @@ impl fmt::Debug for HegselmannKrause {
 }
 
 impl ABM for HegselmannKrause {
+    fn sweep(&mut self) {
+        for _ in 0..self.num_agents {
+            match self.topology_model {
+                // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
+                TopologyModel::FullyConnected => self.step_bisect(),
+                _ => self.step_naive(),
+            }
+        }
+        self.add_state_to_density();
+        self.time += 1;
+    }
+
+    fn reset(&mut self) {
+        self.agents = (0..self.num_agents).map(|_| {
+            let xi = self.gen_init_opinion();
+            let ei = self.gen_init_tolerance();
+            let ci = self.gen_init_resources(ei);
+            Agent::new(
+                xi,
+                ei,
+                ci,
+            )
+        }).collect();
+
+        self.agents_initial = self.agents.clone();
+
+        self.topology = self.gen_init_topology();
+
+        self.prepare_opinion_set();
+        self.time = 0;
+    }
+
     fn get_population_model(&self) -> PopulationModel {
         self.population_model.clone()
     }
@@ -144,89 +176,12 @@ impl ABM for HegselmannKrause {
 }
 
 impl HegselmannKrause {
-
-    fn stretch(x: f32, low: f32, high: f32) -> f32 {
-        x*(high-low)+low
-    }
-
-    fn gen_init_opinion(&mut self) -> f32 {
-        match self.population_model {
-            PopulationModel::Bridgehead(x_init, x_spread, frac, _eps_init, _eps_spread, _eps_min, _eps_max) => {
-                if self.rng.gen::<f32>() > frac {
-                    self.rng.gen()
-                } else {
-                    HegselmannKrause::stretch(self.rng.gen(), x_init-x_spread, x_init+x_spread)
-                }
-            },
-            _ => self.rng.gen(),
-        }
-    }
-
-    fn gen_init_tolerance(&mut self) -> f32 {
-        match self.population_model {
-            PopulationModel::Uniform(min, max) => HegselmannKrause::stretch(self.rng.gen(), min, max),
-            PopulationModel::Bimodal(first, second) => if self.rng.gen::<f32>() < 0.5 {first} else {second},
-            PopulationModel::Bridgehead(_x_init, _x_spread, frac, eps_init, eps_spread, eps_min, eps_max) => {
-                if self.rng.gen::<f32>() > frac {
-                    HegselmannKrause::stretch(self.rng.gen(), eps_min, eps_max)
-                } else {
-                    HegselmannKrause::stretch(self.rng.gen(), eps_init-eps_spread, eps_init+eps_spread)
-                }
-            },
-            PopulationModel::Gaussian(mean, sdev) => {
-                let gauss = Normal::new(mean, sdev).unwrap();
-                // draw gaussian RN until you get one in range
-                loop {
-                    let x = gauss.sample(&mut self.rng);
-                    if x <= 1. && x >= 0. {
-                        break x
-                    }
-                }
-            },
-            PopulationModel::PowerLaw(min, exponent) => {
-                let pareto = Pareto::new(min, exponent - 1.).unwrap();
-                pareto.sample(&mut self.rng)
-            }
-            PopulationModel::PowerLawBound(min, max, exponent) => {
-                // http://mathworld.wolfram.com/RandomNumber.html
-                fn powerlaw(y: f32, low: f32, high: f32, alpha: f32) -> f32 {
-                    ((high.powf(alpha+1.) - low.powf(alpha+1.))*y + low.powf(alpha+1.)).powf(1./(alpha+1.))
-                }
-                powerlaw(self.rng.gen(), min, max, exponent)
-            }
-        }
-    }
-
     pub fn prepare_opinion_set(&mut self) {
         self.opinion_set.clear();
         for i in self.agents.iter() {
             *self.opinion_set.entry(OrderedFloat(i.opinion)).or_insert(0) += 1;
         }
             assert!(self.opinion_set.iter().map(|(_, v)| v).sum::<u32>() == self.num_agents);
-    }
-
-    pub fn reset(&mut self) {
-        self.agents = (0..self.num_agents).map(|_| {
-            let xi = self.gen_init_opinion();
-            let ei = self.gen_init_tolerance();
-            let ci = self.gen_init_resources(ei);
-            Agent::new(
-                xi,
-                ei,
-                ci,
-            )
-        }).collect();
-
-        self.agents_initial = self.agents.clone();
-
-        self.topology = self.gen_init_topology();
-
-        // println!("min:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).min().unwrap());
-        // println!("max:  {}", self.agents.iter().map(|x| OrderedFloat(x.resources)).max().unwrap());
-        // println!("mean: {}", self.agents.iter().map(|x| x.resources).sum::<f32>() / self.agents.len() as f32);
-
-        self.prepare_opinion_set();
-        self.time = 0;
     }
 
     pub fn update_entry(&mut self, old: f32, new: f32) {
@@ -332,18 +287,6 @@ impl HegselmannKrause {
         self.update_entry(old, new_opinion);
         self.agents[idx].opinion = new_opinion;
         self.agents[idx].resources = new_resources
-    }
-
-    pub fn sweep(&mut self) {
-        for _ in 0..self.num_agents {
-            match self.topology_model {
-                // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::FullyConnected => self.step_bisect(),
-                _ => self.step_naive(),
-            }
-        }
-        self.add_state_to_density();
-        self.time += 1;
     }
 
     fn sync_new_opinions_naive(&self) -> Vec<f32> {
