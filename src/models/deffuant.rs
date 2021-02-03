@@ -18,7 +18,8 @@ use ordered_float::OrderedFloat;
 #[cfg(feature = "graphtool")]
 use inline_python::{python,Context};
 
-use super::hk_vanilla::{PopulationModel, TopologyModel, TopologyRealization};
+use super::{PopulationModel, TopologyModel, TopologyRealization, ResourceModel, Agent, EPS};
+use super::ABM;
 
 use petgraph::graph::{Graph, NodeIndex};
 use petgraph::Undirected;
@@ -44,34 +45,9 @@ use super::hypergraph::{
 
 /// maximal time to save density information for
 const THRESHOLD: usize = 400;
-const EPS: f32 = 2e-3;
 const ACC_EPS: f32 = 1e-3;
 const DENSITYBINS: usize = 100;
 
-
-#[derive(Clone, Debug)]
-pub struct DWAgent {
-    pub opinion: f32,
-    pub tolerance: f32,
-    pub initial_opinion: f32,
-}
-
-impl DWAgent {
-    fn new(opinion: f32, tolerance: f32) -> DWAgent {
-        DWAgent {
-            opinion,
-            tolerance,
-            initial_opinion: opinion,
-        }
-    }
-}
-
-impl PartialEq for DWAgent {
-    fn eq(&self, other: &DWAgent) -> bool {
-        (self.opinion - other.opinion).abs() < EPS
-            && (self.tolerance - other.tolerance).abs() < EPS
-    }
-}
 
 pub struct DeffuantBuilder {
     num_agents: u32,
@@ -111,7 +87,7 @@ impl DeffuantBuilder {
 
     pub fn build(&self) -> Deffuant {
         let rng = Pcg64::seed_from_u64(self.seed);
-        let agents: Vec<DWAgent> = Vec::new();
+        let agents: Vec<Agent> = Vec::new();
 
         let dynamic_density = Vec::new();
 
@@ -139,7 +115,7 @@ impl DeffuantBuilder {
 #[derive(Clone)]
 pub struct Deffuant {
     pub num_agents: u32,
-    pub agents: Vec<DWAgent>,
+    pub agents: Vec<Agent>,
     pub time: usize,
 
     // weight of the agent itself
@@ -162,7 +138,7 @@ pub struct Deffuant {
     rng: Pcg64,
 
     // for Markov chains
-    pub agents_initial: Vec<DWAgent>,
+    pub agents_initial: Vec<Agent>,
 }
 
 impl PartialEq for Deffuant {
@@ -177,176 +153,40 @@ impl fmt::Debug for Deffuant {
     }
 }
 
+impl ABM for Deffuant {
+    fn get_population_model(&self) -> PopulationModel {
+        self.population_model.clone()
+    }
+
+    fn get_topology_model(&self) -> TopologyModel {
+        self.topology_model.clone()
+    }
+
+    fn get_resource_model(&self) -> ResourceModel {
+        ResourceModel::None
+    }
+
+    fn get_agents(&self) -> &Vec<Agent> {
+        &self.agents
+    }
+
+    fn get_rng(&mut self) -> &mut Pcg64 {
+        &mut self.rng
+    }
+}
+
 impl Deffuant {
 
     // TODO: separate common functions with HK into a AgentBased Trait
-
-    fn stretch(x: f32, low: f32, high: f32) -> f32 {
-        x*(high-low)+low
-    }
-
-    fn gen_init_opinion(&mut self) -> f32 {
-        match self.population_model {
-            PopulationModel::Bridgehead(x_init, x_spread, frac, _eps_init, _eps_spread, _eps_min, _eps_max) => {
-                if self.rng.gen::<f32>() > frac {
-                    self.rng.gen()
-                } else {
-                    Deffuant::stretch(self.rng.gen(), x_init-x_spread, x_init+x_spread)
-                }
-            },
-            _ => self.rng.gen(),
-        }
-    }
-
-    fn gen_init_tolerance(&mut self) -> f32 {
-        match self.population_model {
-            PopulationModel::Uniform(min, max) => Deffuant::stretch(self.rng.gen(), min, max),
-            PopulationModel::Bimodal(first, second) => if self.rng.gen::<f32>() < 0.5 {first} else {second},
-            PopulationModel::Bridgehead(_x_init, _x_spread, frac, eps_init, eps_spread, eps_min, eps_max) => {
-                if self.rng.gen::<f32>() > frac {
-                    Deffuant::stretch(self.rng.gen(), eps_min, eps_max)
-                } else {
-                    Deffuant::stretch(self.rng.gen(), eps_init-eps_spread, eps_init+eps_spread)
-                }
-            },
-            PopulationModel::Gaussian(mean, sdev) => {
-                let gauss = Normal::new(mean, sdev).unwrap();
-                // draw gaussian RN until you get one in range
-                loop {
-                    let x = gauss.sample(&mut self.rng);
-                    if x <= 1. && x >= 0. {
-                        break x
-                    }
-                }
-            },
-            PopulationModel::PowerLaw(min, exponent) => {
-                let pareto = Pareto::new(min, exponent - 1.).unwrap();
-                pareto.sample(&mut self.rng)
-            }
-            PopulationModel::PowerLawBound(min, max, exponent) => {
-                // http://mathworld.wolfram.com/RandomNumber.html
-                fn powerlaw(y: f32, low: f32, high: f32, alpha: f32) -> f32 {
-                    ((high.powf(alpha+1.) - low.powf(alpha+1.))*y + low.powf(alpha+1.)).powf(1./(alpha+1.))
-                }
-                powerlaw(self.rng.gen(), min, max, exponent)
-            }
-        }
-    }
-
-    fn gen_init_topology(&mut self) -> TopologyRealization {
-        match &self.topology_model {
-            TopologyModel::FullyConnected => TopologyRealization::None,
-            TopologyModel::ER(c) => {
-                let n = self.agents.len();
-                let g = loop {
-                    let tmp = build_er(n, *c as f64, &mut self.rng);
-                    if size_largest_connected_component(&tmp).0 == 1 {
-                        break tmp
-                    }
-                };
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::BA(degree, m0) => {
-                let n = self.agents.len();
-                let g = build_ba(n, *degree, *m0, &mut self.rng);
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::CMBiased(degree_dist) => {
-                let g = loop {
-                    let tmp = build_cm_biased(move |r| degree_dist.clone().gen(r), &mut self.rng);
-                    if size_largest_connected_component(&tmp).0 == 1 {
-                        break tmp
-                    }
-                };
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::CM(degree_dist) => {
-                let g = loop {
-                    let tmp = build_cm(move |r| degree_dist.clone().gen(r), &mut self.rng);
-                    if size_largest_connected_component(&tmp).0 == 1 {
-                        break tmp
-                    }
-                };
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::SquareLattice(next_neighbors) => {
-                let n = self.agents.len();
-                let g = build_lattice(n, *next_neighbors);
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::WS(neighbors, rewiring) => {
-                let n = self.agents.len();
-                // let g = build_ws(n, *neighbors, *rewiring, &mut self.rng);
-                let g = loop {
-                    let tmp = build_ws(n, *neighbors, *rewiring, &mut self.rng);
-                    if size_largest_connected_component(&tmp).0 == 1 {
-                        break tmp
-                    }
-                };
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::WSlat(neighbors, rewiring) => {
-                let n = self.agents.len();
-                // let g = build_ws(n, *neighbors, *rewiring, &mut self.rng);
-                let g = loop {
-                    let tmp = build_ws_lattice(n, *neighbors, *rewiring, &mut self.rng);
-                    if size_largest_connected_component(&tmp).0 == 1 {
-                        break tmp
-                    }
-                };
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::BAT(degree, mt) => {
-                let n = self.agents.len();
-                let m0 = (*degree as f64 / 2.).ceil() as usize + mt.ceil() as usize;
-                let g = build_ba_with_clustering(n, *degree, m0, *mt, &mut self.rng);
-
-                TopologyRealization::Graph(g)
-            },
-            TopologyModel::HyperER(c, k) => {
-                let n = self.agents.len();
-                // TODO: maybe ensure connectedness
-                let g = build_hyper_uniform_er(n, *c, *k, &mut self.rng);
-
-                TopologyRealization::Hypergraph(g)
-            },
-            TopologyModel::HyperERSC(c, k) => {
-                let n = self.agents.len();
-                // TODO: maybe ensure connectedness
-                let g = convert_to_simplical_complex(&build_hyper_uniform_er(n, *c, *k, &mut self.rng));
-
-                TopologyRealization::Hypergraph(g)
-            },
-            TopologyModel::HyperBA(m, k) => {
-                let n = self.agents.len();
-                let g = build_hyper_uniform_ba(n, *m, *k, &mut self.rng);
-
-                TopologyRealization::Hypergraph(g)
-            },
-            TopologyModel::HyperER2(c1, c2, k1, k2) => {
-                let n = self.agents.len();
-                let mut g = build_hyper_uniform_er(n, *c1, *k1, &mut self.rng);
-                g.add_er_hyperdeges(*c2, *k2, &mut self.rng);
-
-                TopologyRealization::Hypergraph(g)
-            },
-        }
-    }
 
     pub fn reset(&mut self) {
         self.agents = (0..self.num_agents).map(|_| {
             let xi = self.gen_init_opinion();
             let ei = self.gen_init_tolerance();
-            DWAgent::new(
+            Agent::new(
                 xi,
                 ei,
+                0.,
             )
         }).collect();
 
@@ -451,8 +291,8 @@ impl Deffuant {
     }
 
     /// A cluster are agents whose distance is less than EPS
-    fn list_clusters(&self) -> Vec<Vec<DWAgent>> {
-        let mut clusters: Vec<Vec<DWAgent>> = Vec::new();
+    fn list_clusters(&self) -> Vec<Vec<Agent>> {
+        let mut clusters: Vec<Vec<Agent>> = Vec::new();
         'agent: for i in &self.agents {
             for c in &mut clusters {
                 if (i.opinion - c[0].opinion).abs() < EPS {
@@ -634,128 +474,6 @@ impl Deffuant {
         Ok(())
     }
 
-    #[cfg(feature = "graphtool")]
-    pub fn write_graph_png(&self, path: &Path, active: bool) -> std::io::Result<()> {
-        let mut py = python!{g = None};
-        self.write_graph_png_with_memory(path, &mut py, active)
-    }
-
-    #[cfg(not(feature = "graphtool"))]
-    pub fn write_graph_png(&self, _path: &Path, _active: bool) -> std::io::Result<()> {
-        println!("Warning: This executable was not compiled the 'graphtool' feature. Can not draw the graph representation. Will ignore this error and proceed.");
-        Ok(())
-    }
-
-    #[cfg(feature = "graphtool")]
-    pub fn write_graph_png_with_memory(&self, path: &Path, py: &mut Context, active: bool) -> std::io::Result<()> {
-        let gradient = colorous::VIRIDIS;
-        let out = path.to_str().unwrap();
-
-        let edgelist: Vec<Vec<usize>>;
-        let colors: Vec<Vec<f64>>;
-
-        match &self.topology {
-            TopologyRealization::Graph(g) => {
-                colors = self.agents.iter().map(|i| {
-                    let gr = gradient.eval_continuous(i.opinion as f64);
-                    vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
-                }).collect();
-                edgelist = if active {
-                    g.edge_indices()
-                        .map(|e| {
-                            let (u, v) = g.edge_endpoints(e).unwrap();
-                            vec![u.index(), v.index()]
-                        })
-                        .filter(|v| (self.agents[v[0]].opinion - self.agents[v[1]].opinion).abs() <= self.agents[v[0]].tolerance)
-                        .collect()
-                } else {
-                    g.edge_indices()
-                        .map(|e| {
-                            let (u, v) = g.edge_endpoints(e).unwrap();
-                            vec![u.index(), v.index()]
-                        })
-                        .collect()
-                };
-            }
-            TopologyRealization::Hypergraph(h) => {
-                colors = self.agents.iter().map(|i| {
-                    let gr = gradient.eval_continuous(i.opinion as f64);
-                    vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
-                }).chain(
-                    h.edge_nodes.iter()
-                        .map(|_| vec![1., 0., 0., 1.])
-                ).collect();
-
-                let g = &h.factor_graph;
-                edgelist = if active {
-                    h.edge_nodes.iter()
-                        .filter(|&&e| {
-                            let opin = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
-                            let opix = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
-                            let tol = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance));
-                            opix.max().unwrap().into_inner() - opin.min().unwrap().into_inner() < tol.min().unwrap().into_inner()
-                        })
-                        .flat_map(|&e| {
-                            g.edges(e).map(|edge| {
-                                vec![edge.source().index(), edge.target().index()]
-                            })
-                        })
-                        .collect()
-                } else {
-                    g.edge_indices()
-                        .map(|e| {
-                            let (u, v) = g.edge_endpoints(e).unwrap();
-                            vec![u.index(), v.index()]
-                        })
-                        .collect()
-                };
-            }
-            _ => {
-                edgelist = Vec::new();
-                colors = Vec::new();
-            }
-        }
-
-        py.run(python! {
-            import graph_tool.all as gt
-
-            if len('edgelist) == 0:
-                print("Warning: There are no edges in this graph, do not render anything!")
-
-            g = None
-            if g is None:
-                g = gt.Graph(directed=False)
-                g.add_edge_list('edgelist)
-                pos = gt.sfdp_layout(g)
-            else:
-                g.clear_edges()
-                g.add_edge_list('edgelist)
-
-            colors = g.new_vp("vector<double>")
-            sizes = g.new_vp("double")
-            shapes = g.new_vp("int")
-            for n, c in enumerate('colors):
-                colors[n] = c
-                sizes[n] = 3 if c == [1., 0., 0., 1.] else 20
-                shapes[n] = 0 if c == [1., 0., 0., 1.] else 2
-
-            gt.graph_draw(
-                g,
-                pos=pos,
-                vertex_shape=shapes,
-                vertex_size=sizes,
-                vertex_fill_color=colors,
-                edge_color=[0.7, 0.7, 0.7, 0.5],
-                bg_color=[1., 1., 1., 1.],
-                output_size=(1920, 1920),
-                adjust_aspect=False,
-                output='out,
-            )
-        });
-
-        Ok(())
-    }
-
     pub fn relax(&mut self) {
         self.acc_change = ACC_EPS;
 
@@ -766,30 +484,3 @@ impl Deffuant {
         }
     }
 }
-
-// impl Model for Deffuant {
-//     fn value(&self) -> f64 {
-//         self.cluster_max() as f64 / self.num_agents as f64
-//     }
-// }
-
-// impl MarkovChain for Deffuant {
-//     fn change(&mut self, rng: &mut impl Rng) {
-//         self.undo_idx = rng.gen_range(0, self.agents.len());
-//         let val: f32 = rng.gen();
-//         self.undo_val = self.agents_initial[self.undo_idx].initial_opinion;
-
-//         self.agents_initial[self.undo_idx].opinion = val;
-//         self.agents_initial[self.undo_idx].initial_opinion = val;
-
-//         self.agents = self.agents_initial.clone();
-//         self.prepare_opinion_set();
-
-//         self.relax();
-//     }
-
-//     fn undo(&mut self) {
-//         self.agents_initial[self.undo_idx].initial_opinion = self.undo_val;
-//         self.agents_initial[self.undo_idx].opinion = self.undo_val;
-//     }
-// }

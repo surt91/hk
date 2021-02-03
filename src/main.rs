@@ -17,6 +17,8 @@ use hk::HegselmannKrauseLorenzSingle;
 use hk::{anneal, anneal_sweep, local_anneal, Exponential, Constant, CostModel, ResourceModel, PopulationModel, TopologyModel, DegreeDist};
 use hk::models::graph;
 
+use hk::models::ABM;
+
 use largedev::{Metropolis, WangLandau};
 
 use git_version::git_version;
