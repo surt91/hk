@@ -1,12 +1,10 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::{PathBuf, Path};
-
-use std::process::Command;
+use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
@@ -20,6 +18,9 @@ use largedev::{Metropolis, WangLandau};
 use git_version::git_version;
 const GIT_VERSION: &str = git_version!();
 
+mod io;
+use io::Output;
+
 /// Simulate a (modified) Hegselmann Krause model
 #[derive(StructOpt)]
 #[structopt(version = GIT_VERSION)]
@@ -27,10 +28,6 @@ struct Opt {
     #[structopt(short, long)]
     /// number of interacting agents
     num_agents: u32,
-
-    #[structopt(short, long, default_value = "2")]
-    /// number of dimensions (only for Lorenz modification)
-    dimension: u32,
 
     #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6"])]
     /// distribution of the tolerances epsilon_i:{n}
@@ -119,10 +116,6 @@ struct Opt {
     /// weight of cost
     eta: f64,
 
-    #[structopt(short = "r", long, default_value = "5")]
-    /// start resources for HKAC
-    start_resources: f64,
-
     #[structopt(short = "T", long, default_value = "1.0", allow_hyphen_values = true)]
     /// temperature (only for fixed temperature 8)
     temperature: f64,
@@ -188,29 +181,6 @@ enum LargeDev {
 }
 
 
-// TODO: I should introduce the trait `model` and make everything below more generic
-// a model should implement sweep, write_state and write_gp
-
-fn vis_hk_as_graph(hk: &HegselmannKrause, dotname: &Path) -> Result<(), std::io::Error>{
-    // let dotname = filename.with_extension(format!("{}.dot", ctr));
-    println!("{:?}", dotname);
-    let mut dotfile = File::create(&dotname)?;
-    let g = graph::from_hk(&hk);
-    // let g = graph::condense(&g);
-    let dot = graph::dot(&g);
-    writeln!(dotfile, "{}", dot)?;
-    drop(dotfile);
-    let dotimage = Command::new("fdp")
-        .arg(dotname.to_str().unwrap())
-        .arg("-Tpng")
-        .output()
-        .expect("failed to create dot image");
-    let mut dotimagefile = File::create(&dotname.with_extension("png"))?;
-    dotimagefile.write_all(&dotimage.stdout)?;
-
-    Ok(())
-}
-
 pub fn cluster_sizes_from_graph(hk: &HegselmannKrause) -> Vec<usize> {
     let g = graph::from_hk(&hk);
     graph::clustersizes(&g)
@@ -227,94 +197,12 @@ fn write_cluster_sizes(clusters: &[usize], file: &mut File) -> std::io::Result<(
     Ok(())
 }
 
-fn write_entropy(clusters: &[usize], file: &mut File) -> std::io::Result<()> {
-    let s = entropy(&clusters);
-    writeln!(file, "{}", s)?;
-    Ok(())
-}
-
 fn entropy(clustersizes: &[usize]) -> f32 {
     let f = 1. / clustersizes.iter().sum::<usize>() as f32;
     clustersizes.iter().map(|c| {
         let p = *c as f32 * f;
         - p * p.ln()
     }).sum()
-}
-
-struct Output {
-    tmp_file: File,
-    tmp_path: PathBuf,
-    final_path: PathBuf,
-}
-
-impl Output {
-    pub fn new(outname: &Path, extension: &str, tmp_path: &Path) -> std::io::Result<Output> {
-        use rand::{thread_rng};
-        use rand::distributions::Alphanumeric;
-        let random: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .collect();
-
-        let tmp_path = tmp_path.join(random).with_extension(extension);
-
-        let final_path = outname.with_extension(extension);
-
-        if let Some(dirs) = tmp_path.parent() {
-            std::fs::create_dir_all(&dirs)?;
-        }
-        let tmp_file = File::create(&tmp_path)?;
-
-        Ok(Output {
-            tmp_file,
-            tmp_path,
-            final_path,
-        })
-    }
-
-    pub fn file(&mut self) -> &mut File {
-        &mut self.tmp_file
-    }
-
-    pub fn final_name(&self) -> PathBuf {
-        let mut gz_ext = self.tmp_path.extension().unwrap().to_os_string();
-        gz_ext.push(".gz");
-        self.final_path.with_extension(&gz_ext)
-    }
-
-    fn zip(name: &Path) {
-        Command::new("gzip")
-            .arg(name.to_str().unwrap())
-            .output()
-            .expect("failed to zip output file");
-    }
-
-    pub fn finalize(self) -> std::io::Result<()> {
-        let tmp_path = self.tmp_path;
-        // flush and close temporary file
-        self.tmp_file.sync_all()?;
-        drop(self.tmp_file);
-
-        // zip temporary file
-        Output::zip(&tmp_path);
-        let mut gz_ext = tmp_path.extension().unwrap().to_os_string();
-        gz_ext.push(".gz");
-        let tmp_path = tmp_path.with_extension(&gz_ext);
-        let final_path = self.final_path.with_extension(&gz_ext);
-
-        // move finished file to final location, (if they differ)
-        if let Some(dirs) = final_path.parent() {
-            std::fs::create_dir_all(&dirs)?;
-        }
-        if tmp_path != final_path {
-            std::fs::rename(&tmp_path, &final_path).or_else(|_| {
-                std::fs::copy(&tmp_path, &final_path).expect("could not move or copy the file");
-                std::fs::remove_file(&tmp_path)
-            })?;
-        }
-
-        Ok(())
-    }
 }
 
 fn main() -> std::io::Result<()> {

@@ -70,8 +70,8 @@ pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng
 
     let mut g = Graph::new_undirected();
     let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
-    let mut edge_array: Vec<NodeIndex<u32>> = Vec::new();
-    let mut edge_set: Set<Set<usize>> = Set::new();
+    let edge_array: Vec<NodeIndex<u32>> = Vec::new();
+    let edge_set: Set<Set<usize>> = Set::new();
 
     // roll dice how many edges there should be
     let p = c / (2.*n_choose_k(n, k) as f64 / n as f64);

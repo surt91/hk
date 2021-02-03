@@ -9,10 +9,7 @@ use rand_pcg::Pcg64;
 use rand::seq::IteratorRandom;
 use ordered_float::OrderedFloat;
 
-#[cfg(feature = "graphtool")]
-use inline_python::{python,Context};
-
-use super::{PopulationModel, TopologyModel, TopologyRealization, ResourceModel, Agent, EPS};
+use super::{PopulationModel, TopologyModel, TopologyRealization, ResourceModel, Agent};
 use super::{ABM, ABMBuilder};
 use super::abm::ABMinternals;
 

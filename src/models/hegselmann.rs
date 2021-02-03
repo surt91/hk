@@ -5,28 +5,15 @@
 use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::fmt;
-use std::path::Path;
-use std::fs::File;
-use std::io::BufWriter;
-use std::io::prelude::*;
 
 use rand::{Rng, SeedableRng};
-use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
-use itertools::Itertools;
-
-#[cfg(feature = "graphtool")]
-use inline_python::{python,Context};
 
 use ordered_float::OrderedFloat;
 
 use petgraph::graph::NodeIndex;
-use petgraph::algo::connected_components;
-use super::graph::{
-    size_largest_connected_component,
-};
 
-use super::{EPS, CostModel, ResourceModel, PopulationModel, TopologyModel, TopologyRealization, Agent};
+use super::{CostModel, ResourceModel, PopulationModel, TopologyModel, TopologyRealization, Agent};
 use super::ABM;
 use super::ABMBuilder;
 use super::abm::ABMinternals;
@@ -247,7 +234,7 @@ impl HegselmannKrause {
                     .filter(|j| (i.opinion - j).abs() < i.tolerance)
                     .fold((0., 0), |(sum, count), i| (sum + i, count + 1))
             }
-            TopologyRealization::Hypergraph(g) => unimplemented!(),
+            TopologyRealization::Hypergraph(_) => unimplemented!(),
         };
 
         let new_opinion = sum / count as f32;
@@ -395,7 +382,7 @@ impl HegselmannKrause {
         self.time += 1;
     }
 
-    fn sweep_async(&mut self) {
+    pub fn sweep_async(&mut self) {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`

@@ -6,6 +6,9 @@ use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 
 #[cfg(feature = "graphtool")]
+use ordered_float::OrderedFloat;
+
+#[cfg(feature = "graphtool")]
 use inline_python::{python,Context};
 
 use petgraph::graph::Graph;
@@ -33,6 +36,9 @@ use std::io::BufWriter;
 use std::io::prelude::*;
 use itertools::Itertools;
 use petgraph::algo::connected_components;
+
+#[cfg(feature = "graphtool")]
+use petgraph::visit::EdgeRef;
 
 pub const EPS: f32 = 2e-3;
 pub const ACC_EPS: f32 = 1e-3;
@@ -417,9 +423,9 @@ pub trait ABM {
         let edgelist: Vec<Vec<usize>>;
         let colors: Vec<Vec<f64>>;
 
-        match &self.topology {
+        match &self.get_topology() {
             TopologyRealization::Graph(g) => {
-                colors = self.agents.iter().map(|i| {
+                colors = self.get_agents().iter().map(|i| {
                     let gr = gradient.eval_continuous(i.opinion as f64);
                     vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
                 }).collect();
@@ -429,7 +435,7 @@ pub trait ABM {
                             let (u, v) = g.edge_endpoints(e).unwrap();
                             vec![u.index(), v.index()]
                         })
-                        .filter(|v| (self.agents[v[0]].opinion - self.agents[v[1]].opinion).abs() <= self.agents[v[0]].tolerance)
+                        .filter(|v| (self.get_agents()[v[0]].opinion - self.get_agents()[v[1]].opinion).abs() <= self.get_agents()[v[0]].tolerance)
                         .collect()
                 } else {
                     g.edge_indices()
@@ -441,7 +447,7 @@ pub trait ABM {
                 };
             }
             TopologyRealization::Hypergraph(h) => {
-                colors = self.agents.iter().map(|i| {
+                colors = self.get_agents().iter().map(|i| {
                     let gr = gradient.eval_continuous(i.opinion as f64);
                     vec![gr.r as f64 / 255., gr.g as f64 / 255., gr.b as f64 / 255., 1.]
                 }).chain(
@@ -453,9 +459,9 @@ pub trait ABM {
                 edgelist = if active {
                     h.edge_nodes.iter()
                         .filter(|&&e| {
-                            let opin = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
-                            let opix = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
-                            let tol = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance));
+                            let opin = g.neighbors(e).map(|n| OrderedFloat(self.get_agents()[*g.node_weight(n).unwrap()].opinion));
+                            let opix = g.neighbors(e).map(|n| OrderedFloat(self.get_agents()[*g.node_weight(n).unwrap()].opinion));
+                            let tol = g.neighbors(e).map(|n| OrderedFloat(self.get_agents()[*g.node_weight(n).unwrap()].tolerance));
                             opix.max().unwrap().into_inner() - opin.min().unwrap().into_inner() < tol.min().unwrap().into_inner()
                         })
                         .flat_map(|&e| {
