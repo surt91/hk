@@ -419,7 +419,6 @@ pub trait ABM {
         let gradient = colorous::VIRIDIS;
         let out = path.to_str().unwrap();
 
-        // TODO: hypergraph
         let edgelist: Vec<Vec<usize>>;
         let colors: Vec<Vec<f64>>;
 
@@ -713,7 +712,6 @@ pub trait ABM {
             ,
         };
 
-        // TODO: save more information: size of the largest component, ...
         writeln!(file, "{} {} {} {}", num_components, lcc_num, lcc, mean_degree)
         // println!("n {}, c {}, p {}, m {}, num components: {:?}", n, c, p, m, components);
     }
