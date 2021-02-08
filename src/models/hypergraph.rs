@@ -3,7 +3,7 @@ use itertools::Itertools;
 use std::iter::FromIterator;
 
 use rand::Rng;
-use rand_distr::{Binomial, Distribution};
+use rand_distr::{Binomial, Normal, Distribution};
 use rand::seq::SliceRandom;
 
 use petgraph::graph::{UnGraph, Graph, NodeIndex};
@@ -37,13 +37,31 @@ impl Hypergraph {
         // roll dice how many edges there should be
         let g = &mut self.factor_graph;
         let n = self.node_nodes.len();
-        let p = c / (2.*n_choose_k(n, k) as f64 / n as f64);
-        let binom = Binomial::new(n_choose_k(n, k) as u64, p).unwrap();
-        let m = binom.sample(&mut rng) as usize;
+
+        // roll dice how many edges there should be
+        let num = n_choose_k(n, k);
+        let numf = num as f64;
+        let p = c / (2.*num as f64 / n as f64);
+        let np = c / (2. / n as f64);
+        // if `num` is too large, use a Gaussian approximation, otherwise use binomial
+        let num_edges = if numf < 1e7 {
+            let binom = Binomial::new(num as u64, p).unwrap();
+            binom.sample(&mut rng) as usize
+        } else {
+            // assert that our error will be small
+            assert!(np > 9.*(1.-p));
+            let gauss = Normal::new(np, (np*(1.-p)).sqrt()).unwrap();
+            let rn = gauss.sample(&mut rng);
+            // this should not happen during the lifetime of our universe
+            // so we do not need to handle it.
+            assert!(rn > 0.);
+            rn as usize
+        };
+
         let start_ctr = self.ctr;
 
-        // draw m many k-tuples of nodes and add them as edges (=factor-nodes)
-        while self.ctr < m + start_ctr {
+        // draw `num_edges` many `k`-tuples of nodes and add them as edges (=factor-nodes)
+        while self.ctr < num_edges + start_ctr {
             let idx: Set<usize> = (0..k).map(|_| rng.gen_range(0, n)).collect();
 
             if idx.len() == k && !self.edge_set.contains(&idx) {
@@ -72,11 +90,6 @@ pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng
     let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
     let edge_array: Vec<NodeIndex<u32>> = Vec::new();
     let edge_set: Set<Set<usize>> = Set::new();
-
-    // roll dice how many edges there should be
-    let p = c / (2.*n_choose_k(n, k) as f64 / n as f64);
-    let binom = Binomial::new(n_choose_k(n, k) as u64, p).unwrap();
-    let m = binom.sample(&mut rng) as usize;
 
     let mut h = Hypergraph {
         factor_graph: g,
