@@ -1,6 +1,7 @@
 __pycache__
 target/
 tmp/
+callgrind.out.*
 
 out*
 jobs.lst
