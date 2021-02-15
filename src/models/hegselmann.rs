@@ -39,8 +39,6 @@ impl ABMBuilder {
             population_model: self.population_model.clone(),
             topology_model: self.topology_model.clone(),
             opinion_set,
-            ji: Vec::new(),
-            jin: Vec::new(),
             rng,
             undo_idx: 0,
             undo_val: 0.,
@@ -69,9 +67,6 @@ pub struct HegselmannKrause {
     topology_model: TopologyModel,
 
     pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
-
-    pub ji: Vec<f32>,
-    pub jin: Vec<i32>,
 
     // we need many, good (but not crypto) random numbers
     // we will use here the pcg generator
