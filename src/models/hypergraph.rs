@@ -40,8 +40,8 @@ impl Hypergraph {
 
         // roll dice how many edges there should be
         let num = n_choose_k(n, k);
-        let p = c / (2.*num as f64 / n as f64);
-        let np = c / (2. / n as f64);
+        let p = c / (k as f64 * num as f64 / n as f64);
+        let np = c / (k as f64 / n as f64);
         // if `num` is too large, use a Gaussian approximation, otherwise use binomial
         let num_edges = if np < 1e3 {
             let binom = Binomial::new(num as u64, p).unwrap();
