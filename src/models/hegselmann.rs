@@ -287,8 +287,10 @@ impl HegselmannKrause {
                         }
                 },
                 TopologyRealization::Graph(g) => {
-                    let nodes: Vec<NodeIndex<u32>> = g.node_indices().collect();
-                    for j in g.neighbors(nodes[idx]).chain(std::iter::once(nodes[idx]))
+                    // a node index is actually exactly the same as our index, since we do not change
+                    // the graph after construction.
+                    let node = NodeIndex::new(idx);
+                    for j in g.neighbors(node).chain(std::iter::once(node))
                         .filter(|j| (i.opinion - self.agents[g[*j]].opinion).abs() < i.tolerance) {
                             tmp += self.agents[g[j]].opinion;
                             count += 1;
