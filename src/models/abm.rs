@@ -29,6 +29,7 @@ use super::hypergraph::{
     build_hyper_uniform_er,
     convert_to_simplical_complex,
     build_hyper_uniform_ba,
+    build_hyper_gaussian_er,
 };
 
 use std::fs::File;
@@ -126,6 +127,8 @@ pub enum TopologyModel {
     HyperBA(usize, usize),
     /// uniform HyperER with two sizes of hyperedges
     HyperER2(f64, f64, usize, usize),
+    /// HyperER with Gaussian distributed degrees for all orders
+    HyperERGaussian(f64, f64, f64),
 }
 
 #[derive(Clone, Debug)]
@@ -378,6 +381,14 @@ pub trait ABM {
                 let n = self.get_agents().len();
                 let mut g = build_hyper_uniform_er(n, *c1, *k1, &mut self.get_rng());
                 g.add_er_hyperdeges(*c2, *k2, &mut self.get_rng());
+
+                TopologyRealization::Hypergraph(g)
+            },
+            TopologyModel::HyperERGaussian(c, mu, sigma) => {
+                let n = self.get_agents().len();
+
+                // empty hypergraph
+                let g = build_hyper_gaussian_er(n, *c, *mu, *sigma, &mut self.get_rng());
 
                 TopologyRealization::Hypergraph(g)
             },

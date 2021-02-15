@@ -80,11 +80,7 @@ fn n_choose_k(n: usize, k: usize) -> usize {
     (1..=k).map(|i| (n+1-i) as f64 / i as f64).product::<f64>() as usize
 }
 
-pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng) -> Hypergraph {
-    // ensure that the edges connect at least two nodes
-    // note that k = 2 is just a regular graph, which might be handy for testing
-    assert!(k > 1);
-
+pub fn build_hyper_empty(n: usize) -> Hypergraph {
     let mut g = Graph::new_undirected();
     let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| g.add_node(i)).collect();
     let edge_array: Vec<NodeIndex<u32>> = Vec::new();
@@ -97,6 +93,16 @@ pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng
         edge_set,
         ctr: 0,
     };
+
+    h
+}
+
+pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng) -> Hypergraph {
+    // ensure that the edges connect at least two nodes
+    // note that k = 2 is just a regular graph, which might be handy for testing
+    assert!(k > 1);
+
+    let mut h = build_hyper_empty(n);
 
     h.add_er_hyperdeges(c, k, &mut rng);
 
@@ -176,6 +182,19 @@ pub fn build_hyper_uniform_ba(n: usize, m: usize, k: usize, mut rng: &mut impl R
         edge_set,
         ctr,
     }
+}
+
+pub fn build_hyper_gaussian_er(n: usize, c: f64, mu: f64, sigma: f64, mut rng: &mut impl Rng) -> Hypergraph {
+    // empty hypergraph
+    let mut h = build_hyper_empty(n);
+
+    // distribute the order of the edges like c * Gaussian(mu, sigma), but rounded and bounded by 2 and N-1
+    for k in 2..=n {
+        let c_k = c/(sigma*2.*std::f64::consts::PI) * (-1./2.*(k as f64 - mu).powi(2)/sigma.powi(2)).exp();
+        h.add_er_hyperdeges(c_k, k, &mut rng);
+    }
+
+    h
 }
 
 pub fn convert_to_simplical_complex(g: &Hypergraph) -> Hypergraph {

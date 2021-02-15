@@ -1,0 +1,103 @@
+import os
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+import parameters
+from parameters import parameters as ps
+
+cutoff = 100
+
+for p in ps:
+    el = p["tolerance_lower"]
+    eu = p["tolerance_upper"]
+    name = parameters.outname.format(**p).replace(".", "")
+    basename = "n{}l{:.2f}u{:.2f}s{}eta{}".format(p["num_agents"], el, eu, p["seed"], p["eta"]).replace(".", "")
+    a = np.loadtxt(name + ".density.dat") / p["samples"] / p["num_agents"]
+
+    if len(a.shape) != 2:
+        continue
+
+    a[a==0] = np.nan
+
+    # calculate entropy of the distributions at each time step
+    entropy = []
+    for i in range(min(a.shape[0], cutoff)):
+        # plt.plot(a[i,:])
+        # plt.show()
+        # plt.clf()
+        S = sum(-P*np.log(P) for P in a[i, :] if np.isfinite(P))
+        entropy.append(S)
+
+    print(el, eu, p["num_agents"], p["eta"])
+    plt.xlabel("$t$")
+    plt.ylabel("entropy")
+    plt.plot(entropy)
+    plt.savefig("entropy_"+basename)
+    # plt.show()
+    plt.clf()
+
+#    while a.shape[0] < 100:
+#        a = np.append(a, [a[-1]], axis=0)
+
+    def offset(myFig,myAx,n=1,yOff=60):
+        dx, dy = 0., yOff/myFig.dpi 
+        return myAx.transData + mpl.transforms.ScaledTranslation(dx,n*dy,myFig.dpi_scale_trans)
+
+    fig,ax=plt.subplots(figsize=(5,6))
+    sampling=3
+    thetas=range(0,cutoff)[::sampling]
+
+    cmap = mpl.cm.get_cmap('viridis')
+    norm = mpl.colors.Normalize(vmin=0,vmax=cutoff)
+    df = a[:cutoff,:].transpose()
+
+    for idx,i in enumerate(thetas):
+        z_ind=100-idx ## to ensure each plot is "behind" the previous plot
+        trans=offset(fig,ax,idx,yOff=sampling)
+
+        xs=[i/100 for i in range(101)]
+        ys=df[:, idx]
+
+        ## note that I am using both .plot() and .fill_between(.. edgecolor="None" ..) 
+        #  in order to circumvent showing the "edges" of the fill_between 
+        ax.plot(xs,ys,color=cmap(norm(i)),linewidth=1, transform=trans,zorder=z_ind)
+        ## try alpha=0.05 below for some "light shading"
+        ax.fill_between(xs,ys,-0.5,facecolor="w",alpha=1, edgecolor="None",transform=trans,zorder=z_ind)
+
+    cbax = fig.add_axes([0.9, 0.15, 0.02, 0.7]) # x-position, y-position, x-width, y-height
+    cb1 = mpl.colorbar.ColorbarBase(cbax, cmap=cmap, norm=norm, orientation='vertical')
+    cb1.set_label('$t$')
+
+    ## use some sensible viewing limits
+    ax.set_xlim(-0.1,1.1)
+    ax.set_ylim(-0.05,0.3)
+
+    ax.set_xlabel('$x$')
+    ax.set_ylabel('$P(x)$')
+    
+    plt.savefig("waterfall_" + basename)
+    plt.clf()
+    plt.close(fig)
+
+    plt.imshow(
+        a[:cutoff,:].transpose(),
+        cmap=plt.cm.viridis_r,
+        vmin=1/p["num_agents"],
+        aspect="auto",
+#        vmax=1,
+#        norm=matplotlib.colors.LogNorm()
+    )
+
+    plt.tight_layout()
+
+    print(el, eu)
+    plt.colorbar()
+    plt.xlabel("$t$")
+    plt.ylabel("opinion * 100")
+    plt.savefig("heatmap_" + basename)
+    plt.clf()
+    plt.close(fig)
+    
+    os.system("convert +append *{}.png all_{}_all.png".format(basename, basename))

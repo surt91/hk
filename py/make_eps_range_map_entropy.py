@@ -17,29 +17,29 @@ for p in ps:
     el = p["tolerance_lower"]
     eu = p["tolerance_upper"]
     name = parameters.outname.format(**p).replace(".", "")
-    with gzip.open(name + ".cluster.dat.gz") as f:
-        for line in f:
-            if line.startswith(b"# sweeps"):
-                continue
-            if line.startswith(b"#"):
-                opinions = list(map(float, line.split()))
-                continue
-            a = list(map(float, line.strip(b"#").strip().split()))
+    try:
+        with gzip.open(name + ".cluster.dat.gz") as f:
+            for line in f:
+                if line.startswith(b"# sweeps"):
+                    continue
+                if line.startswith(b"#"):
+                    opinions = list(map(float, line[2:].split()))
+                    continue
+                a = list(map(float, line.split()))
+                data, borders = np.histogram(opinions, bins=100, range=(0,1), weights=a, density=False)
+                data /= sum(a)
+                centers = (borders[1:] + borders[:-1])
+                S = 0
 
-            try:
-                len(a)
-            except:
-                val = a
-            else:
-                final_opinion = opinions[np.argmax(a)]
-                val = max(a)
-                # if another cluster is closer than eps_u in opinion, merge its mass
-                for s, o in zip(a, opinions):
-                    if abs(o - final_opinion) < eu:
-                        val += s
-            xs.append(el)
-            ys.append(eu)
-            zs.append(val/p["num_agents"]/p["samples"])
+                for p in data:
+                    if p>0:
+                        S += -p * np.log(p)
+                val = S
+                xs.append(el)
+                ys.append(eu)
+                zs.append(val)
+    except OSError: 
+        print("missing file:", name)
 
 xsort = sorted(set(xs))
 xbins = np.linspace(xsort[0]-(xsort[1]-xsort[0])/2, xsort[-1]+(xsort[-1]-xsort[-2])/2, len(set(xs))+1, endpoint=True)
@@ -57,7 +57,7 @@ data = {
     "ybins": list(ybins),
 }
 
-with lzma.open("data.json.xz", "w") as f:
+with lzma.open("data_entropy.json.xz", "w") as f:
     f.write(json.dumps(data).encode('utf-8'))
 
 fig = plt.gcf()
@@ -72,14 +72,14 @@ h, xedges, yedges, _ = plt.hist2d(
     weights=zs,
     bins=(xbins, ybins),
     cmap=plt.cm.viridis_r,
-    vmin=0,
-    vmax=1,
+#    vmin=0,
+#    vmax=1,
 #    norm=matplotlib.colors.LogNorm(),
 #    density=True
 )
 plt.colorbar()
 plt.tight_layout()
 
-fig.savefig('map.pdf', dpi=300)
-fig.savefig("map.png")
+fig.savefig('map_entropy.pdf', dpi=300)
+fig.savefig("map_entropy.png")
 #plt.show()

@@ -64,7 +64,7 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"])]
     /// topology:{n}
     /// 1 => fully connected{n}
     /// 2 => Erdoes Renyi{n}
@@ -79,6 +79,7 @@ struct Opt {
     /// 11 => Hyper-Erdoes-Renyi, Simplical Complex{n}
     /// 12 => Hyper-Barabasi-Albert{n}
     /// 13 => Hyper-Erdoes-Renyi, 2 hypergraph orders{n}
+    /// 13 => Hyper-Erdoes-Renyi, Gaussian distributed orders{n}
     topology: u32,
 
     #[structopt(long, default_value = "1", allow_hyphen_values = true)]
@@ -91,21 +92,24 @@ struct Opt {
     /// Watts Strogatz: n-th nearest neighbors{n}
     /// BA+Triangles: m{n}
     /// HyperBA: m{n}
-    /// Hyper-ER 2: c1
+    /// Hyper-ER 2: c1{n}
+    /// Hyper-ER Gaussian: c (scale factor){n}
     topology_parameter: f32,
 
     #[structopt(long, default_value = "1")]
     /// dependent on topology:{n}
-    /// fully connected: unused{n}
-    /// Erdoes Renyi: unused{n}
-    /// Barabasi Albert: unused{n}
     /// Configuration Model: minimum degree{n}
     /// square lattice: unused{n}
     /// Watts Strogatz: rewiring probability{n}
     /// BA+Triangles: m_t{n}
     /// HyperBA: k{n}
-    /// Hyper-ER 2: c2
+    /// Hyper-ER 2: c2{n}
+    /// Hyper-ER Gaussian: mean mu{n}
     topology_parameter2: f32,
+
+    #[structopt(long, default_value = "1")]
+    /// Hyper-ER Gaussian: standard deviation sigma{n}
+    topology_parameter3: f32,
 
     #[structopt(long)]
     /// switch whether to save an image of the topology in the initial and final state
@@ -282,7 +286,13 @@ fn main() -> std::io::Result<()> {
         10 => TopologyModel::HyperER(args.topology_parameter as f64, args.topology_parameter2 as usize),
         11 => TopologyModel::HyperERSC(args.topology_parameter as f64, args.topology_parameter2 as usize),
         12 => TopologyModel::HyperBA(args.topology_parameter as usize, args.topology_parameter2 as usize),
-        13 => TopologyModel::HyperER2(args.topology_parameter as f64, args.topology_parameter2 as f64, 2, 4),
+        // 13 => TopologyModel::HyperER2(args.topology_parameter as f64, args.topology_parameter2 as f64, 2, 4),
+        13 => TopologyModel::HyperER2(args.topology_parameter as f64, args.topology_parameter2 as f64, 3, 5),
+        14 => TopologyModel::HyperERGaussian(
+            args.topology_parameter as f64,
+            args.topology_parameter2 as f64,
+            args.topology_parameter3 as f64
+        ),
         _ => unreachable!(),
     };
 
