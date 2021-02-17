@@ -86,15 +86,13 @@ pub fn build_hyper_empty(n: usize) -> Hypergraph {
     let edge_array: Vec<NodeIndex<u32>> = Vec::new();
     let edge_set: Set<Set<usize>> = Set::new();
 
-    let mut h = Hypergraph {
+    Hypergraph {
         factor_graph: g,
         node_nodes: node_array,
         edge_nodes: edge_array,
         edge_set,
         ctr: 0,
-    };
-
-    h
+    }
 }
 
 pub fn build_hyper_uniform_er(n: usize, c: f64, k: usize, mut rng: &mut impl Rng) -> Hypergraph {
