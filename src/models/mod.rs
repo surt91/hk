@@ -1,5 +1,6 @@
 mod hegselmann;
 mod deffuant;
+mod rewiring;
 
 mod abm;
 pub mod graph;
@@ -14,3 +15,5 @@ pub use abm::ABMBuilder;
 pub use hegselmann::HegselmannKrause;
 
 pub use deffuant::Deffuant;
+
+pub use rewiring::RewDeffuant;

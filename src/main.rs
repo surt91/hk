@@ -79,7 +79,7 @@ struct Opt {
     /// 11 => Hyper-Erdoes-Renyi, Simplical Complex{n}
     /// 12 => Hyper-Barabasi-Albert{n}
     /// 13 => Hyper-Erdoes-Renyi, 2 hypergraph orders{n}
-    /// 13 => Hyper-Erdoes-Renyi, Gaussian distributed orders{n}
+    /// 14 => Hyper-Erdoes-Renyi, Gaussian distributed orders{n}
     topology: u32,
 
     #[structopt(long, default_value = "1", allow_hyphen_values = true)]
@@ -144,13 +144,14 @@ struct Opt {
     /// number of times to repeat the simulation
     samples: u32,
 
-    #[structopt(short, long, default_value = "1", possible_values = &["1", "3", "5", "9", "10"])]
+    #[structopt(short, long, default_value = "1", possible_values = &["1", "3", "5", "9", "10", "11"])]
     /// which model to simulate:{n}
     /// 1 -> Hegselmann Krause{n}
     /// 3 -> HK with active cost{n}
     /// 5 -> HK with passive cost{n}
     /// 9 -> Deffuant Weisbuch{n}
     /// 10 -> Only topology information{n}
+    /// 11 -> Hyper-Deffuant with rewiring{n}
     model: u32,
 
     #[structopt(long, default_value = "./tmp", parse(from_os_str))]
@@ -286,8 +287,8 @@ fn main() -> std::io::Result<()> {
         10 => TopologyModel::HyperER(args.topology_parameter as f64, args.topology_parameter2 as usize),
         11 => TopologyModel::HyperERSC(args.topology_parameter as f64, args.topology_parameter2 as usize),
         12 => TopologyModel::HyperBA(args.topology_parameter as usize, args.topology_parameter2 as usize),
-        // 13 => TopologyModel::HyperER2(args.topology_parameter as f64, args.topology_parameter2 as f64, 2, 4),
-        13 => TopologyModel::HyperER2(args.topology_parameter as f64, args.topology_parameter2 as f64, 3, 5),
+        13 => TopologyModel::HyperER2(args.topology_parameter as f64, args.topology_parameter2 as f64, 2, 4),
+        // 13 => TopologyModel::HyperER2(args.topology_parameter as f64, args.topology_parameter2 as f64, 3, 5),
         14 => TopologyModel::HyperERGaussian(
             args.topology_parameter as f64,
             args.topology_parameter2 as f64,
@@ -504,6 +505,81 @@ fn main() -> std::io::Result<()> {
 
             dw.write_density(&mut out_density.file())?;
             dw.write_entropy(&mut out_entropy.file())?;
+
+            out_cluster.finalize()?;
+            out_density.finalize()?;
+            out_entropy.finalize()?;
+            out_topology.finalize()?;
+            out_info.finalize()?;
+            out_detailed.finalize()?;
+
+            Ok(())
+        },
+        11 => {
+            let mut rew = ABMBuilder::new(args.num_agents)
+                .seed(args.seed)
+                .population_model(pop_model)
+                .topology_model(topology_model)
+                .rewiring();
+
+            let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
+            let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
+            let mut out_entropy = Output::new(&args.outname, "entropy.dat", &args.tmp)?;
+            let mut out_topology = Output::new(&args.outname, "topology.dat", &args.tmp)?;
+            let mut out_info = Output::new(&args.outname, "info.dat", &args.tmp)?;
+
+            // if we only do one sample, we also save a detailed evolution
+            let mut out_detailed = Output::new(&args.outname, "detailed.dat", &args.tmp)?;
+
+            write!(out_info.file(), "{}\n{}\n", info_version, info_args)?;
+
+            for _ in 0..args.samples {
+                rew.reset();
+
+                if args.png {
+                    rew.write_graph_png(&args.outname.with_extension("init.png"), true)?;
+                }
+
+                // if we only do one sample, we also save a detailed evoluti
+                if args.samples == 1 {
+                    rew.write_state(out_detailed.file())?;
+                }
+
+                let mut ctr = 0;
+                loop {
+                    // draw before the sweep, to get the initial condition
+                    // if we only do one sample, we also save a detailed evolution
+                    if args.samples == 1 {
+                        rew.write_state(out_detailed.file())?;
+                    }
+
+                    // test if we are converged
+                    ctr += 1;
+
+                    if args.sync {
+                        unimplemented!();
+                    } else {
+                        rew.sweep();
+                    }
+
+                    if rew.get_acc_change() < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
+                        writeln!(out_cluster.file(), "# sweeps: {}", ctr)?;
+                        rew.fill_density();
+                        break;
+                    }
+                    rew.acc_change_reset();
+                }
+                rew.write_cluster_sizes(&mut out_cluster.file())?;
+                rew.write_topology_info(&mut out_topology.file())?;
+
+                if args.png {
+                    rew.write_graph_png(&args.outname.with_extension("final.png"), true)?;
+                    rew.write_graph_png(&args.outname.with_extension("all.png"), false)?;
+                }
+            }
+
+            rew.write_density(&mut out_density.file())?;
+            rew.write_entropy(&mut out_entropy.file())?;
 
             out_cluster.finalize()?;
             out_density.finalize()?;

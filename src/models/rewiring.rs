@@ -16,11 +16,11 @@ use super::abm::ABMinternals;
 use petgraph::graph::NodeIndex;
 
 impl ABMBuilder {
-    pub fn dw(&self) -> Deffuant {
+    pub fn rewiring(&self) -> RewDeffuant {
         let rng = Pcg64::seed_from_u64(self.seed);
         let agents: Vec<Agent> = Vec::new();
 
-        let mut dw = Deffuant {
+        let mut dw = RewDeffuant {
             num_agents: self.num_agents,
             agents: agents.clone(),
             time: 0,
@@ -39,7 +39,7 @@ impl ABMBuilder {
 }
 
 #[derive(Clone)]
-pub struct Deffuant {
+pub struct RewDeffuant {
     pub num_agents: u32,
     pub agents: Vec<Agent>,
     pub time: usize,
@@ -64,19 +64,19 @@ pub struct Deffuant {
     pub agents_initial: Vec<Agent>,
 }
 
-impl PartialEq for Deffuant {
-    fn eq(&self, other: &Deffuant) -> bool {
+impl PartialEq for RewDeffuant {
+    fn eq(&self, other: &RewDeffuant) -> bool {
         self.agents == other.agents
     }
 }
 
-impl fmt::Debug for Deffuant {
+impl fmt::Debug for RewDeffuant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DW {{ N: {}, agents: {:?} }}", self.num_agents, self.agents)
     }
 }
 
-impl ABM for Deffuant {
+impl ABM for RewDeffuant {
     fn sweep(&mut self) {
         for _ in 0..self.num_agents {
             self.step_naive()
@@ -140,59 +140,18 @@ impl ABM for Deffuant {
     }
 }
 
-impl Deffuant {
+impl RewDeffuant {
     pub fn step_naive(&mut self) {
         let old_opinion;
-        let new_opinion = match &self.topology {
-            TopologyRealization::None => {
-                // get a random agent
-                let idx = self.rng.gen_range(0, self.num_agents) as usize;
-                let i = &self.agents[idx];
-                old_opinion = i.opinion;
-
-                let idx2 = loop{
-                    let tmp = self.rng.gen_range(0, self.num_agents) as usize;
-                    if tmp != idx {
-                        break tmp
-                    }
-                };
-                if (i.opinion - self.agents[idx2].opinion).abs() < i.tolerance {
-                    let new_opinion = (i.opinion + self.agents[idx2].opinion) / 2.;
-                    // change the opinion of both endpoints
-                    self.agents[idx].opinion = new_opinion;
-                    self.agents[idx2].opinion = new_opinion;
-                    new_opinion
-                } else {
-                    old_opinion
-                }
-            }
-            TopologyRealization::Graph(g) => {
-                // get a random agent
-                let idx = self.rng.gen_range(0, self.num_agents) as usize;
-                let i = &self.agents[idx];
-                old_opinion = i.opinion;
-
-                let nodes: Vec<NodeIndex<u32>> = g.node_indices().collect();
-                let j = g.neighbors(nodes[idx])
-                    .choose(&mut self.rng);
-                if let Some(idx2) = j {
-                    if (i.opinion - self.agents[g[idx2]].opinion).abs() < i.tolerance {
-                        let new_opinion = (i.opinion + self.agents[g[idx2]].opinion) / 2.;
-                        // change the opinion of both endpoints
-                        self.agents[idx].opinion = new_opinion;
-                        self.agents[g[idx2]].opinion = new_opinion;
-                        new_opinion
-                    } else {
-                        old_opinion
-                    }
-                } else {
-                    old_opinion
-                }
-            }
+        let (new_opinion, changed_edge) = match &self.topology {
             TopologyRealization::Hypergraph(h) => {
-                // get a random hyperdege
-                let eidx = self.rng.gen_range(0, h.edge_nodes.len()) as usize;
-                let e = h.edge_nodes[eidx];
+                // get a random, non-empty hyperdege
+                let e = loop {
+                    let e = h.edge_nodes.iter().choose(&mut self.rng).unwrap();
+                    if h.factor_graph.neighbors(*e).count() > 0 {
+                        break *e
+                    };
+                };
 
                 let g = &h.factor_graph;
 
@@ -212,13 +171,32 @@ impl Deffuant {
                     for n in g.neighbors(e) {
                         self.agents[*g.node_weight(n).unwrap()].opinion = new_opinion
                     }
-                    new_opinion
+                    (Some(new_opinion), e)
                 } else {
-                    old_opinion
+                    (None, e)
                 }
             },
+            _ => panic!("only implemented for hypergraphs")
         };
 
-        self.acc_change((old_opinion - new_opinion).abs());
+        if let Some(new_o) = new_opinion {
+            self.acc_change((old_opinion - new_o).abs());
+        } else {
+            if let TopologyRealization::Hypergraph(h) = &mut self.topology {
+                let e = changed_edge;
+                // since they could not reach an agreement, a random agent leaves this hyperedge
+                // frustrated and joins a random different hyperedge
+                let leaving = h.factor_graph.neighbors(e).choose(&mut self.rng).unwrap();
+                let new_edge = loop {
+                    let tmp = h.edge_nodes.iter().choose(&mut self.rng).unwrap();
+                    if h.factor_graph.find_edge(*tmp, leaving).is_none() {
+                        break tmp
+                    }
+                };
+                h.factor_graph.add_edge(leaving, *new_edge, 1);
+                let to_remove = h.factor_graph.find_edge(leaving, e).unwrap();
+                h.factor_graph.remove_edge(to_remove);
+            }
+        }
     }
 }

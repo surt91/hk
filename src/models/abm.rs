@@ -624,11 +624,12 @@ pub trait ABM {
             let op = self.get_agents()[i as usize].opinion;
             self.get_mut_abm_internals().density_slice[(op*DENSITYBINS as f32) as usize] += 1;
         }
-        if self.get_abm_internals().dynamic_density.len() <= self.get_time() {
+
+        let t = self.get_time();
+        if self.get_abm_internals().dynamic_density.len() <= t {
             let slice = self.get_abm_internals().density_slice.clone();
             self.get_mut_abm_internals().dynamic_density.push(slice);
         } else {
-            let t = self.get_time();
             for i in 0..DENSITYBINS {
                 self.get_mut_abm_internals().dynamic_density[t][i] += self.get_abm_internals().density_slice[i];
             }
