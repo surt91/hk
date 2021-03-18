@@ -30,6 +30,7 @@ use super::hypergraph::{
     convert_to_simplical_complex,
     build_hyper_uniform_ba,
     build_hyper_gaussian_er,
+    build_hyper_uniform_lattice_3_12,
 };
 
 use std::fs::File;
@@ -44,7 +45,7 @@ use petgraph::visit::EdgeRef;
 pub const EPS: f32 = 2e-3;
 pub const ACC_EPS: f32 = 1e-3;
 /// maximal time to save density information for
-const THRESHOLD: usize = 400;
+const THRESHOLD: usize = 10000;
 const DENSITYBINS: usize = 100;
 
 #[derive(PartialEq, Clone)]
@@ -129,6 +130,8 @@ pub enum TopologyModel {
     HyperER2(f64, f64, usize, usize),
     /// HyperER with Gaussian distributed degrees for all orders
     HyperERGaussian(f64, f64, f64),
+    /// Hypergraph with a spatial structure
+    HyperLattice_3_12,
 }
 
 #[derive(Clone, Debug)]
@@ -291,6 +294,7 @@ pub trait ABM {
                         break tmp
                     }
                 };
+                // let g = build_er(n, *c as f64, &mut self.get_rng());
 
                 TopologyRealization::Graph(g)
             },
@@ -387,11 +391,17 @@ pub trait ABM {
             TopologyModel::HyperERGaussian(c, mu, sigma) => {
                 let n = self.get_agents().len();
 
-                // empty hypergraph
                 let g = build_hyper_gaussian_er(n, *c, *mu, *sigma, &mut self.get_rng());
 
                 TopologyRealization::Hypergraph(g)
             },
+            TopologyModel::HyperLattice_3_12 => {
+                let n = self.get_agents().len();
+
+                let g = build_hyper_uniform_lattice_3_12(n);
+
+                TopologyRealization::Hypergraph(g)
+            }
         }
     }
 
