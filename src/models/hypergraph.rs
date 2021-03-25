@@ -182,69 +182,57 @@ pub fn build_hyper_uniform_ba(n: usize, m: usize, k: usize, mut rng: &mut impl R
     }
 }
 
-pub fn build_hyper_uniform_lattice_3_12(n: usize) -> Hypergraph {
+pub fn build_hyper_uniform_lattice<const N: usize, const M: usize>(n: usize, offsets: &[[(isize, isize); M]; N]) -> Hypergraph {
     // ensure that the edges connect at least two nodes
     // note that k = 2 is just a regular graph, which might be handy for testing
-    let l = (n as f64).sqrt() as usize;
-    assert!(l*l == n);
+    let ni = n as isize;
+    let l = (n as f64).sqrt() as isize;
+    assert!(l*l == ni);
 
     let mut h = build_hyper_empty(n);
 
-    for i in 0..n {
-        let mut idx: Set<usize> = Set::new();
-        idx.insert(i);
-        idx.insert((i+1) % n); // these are helical boundaries for my convenience
-        idx.insert((i+l) % n);
+    for i in 0..(ni) {
+        for os in offsets {
+            let mut idx: Set<usize> = Set::new();
+            // println!("{}: ", i);
+            for (o1, o2) in os {
+                let x = (i + ni + o1) % l;
+                let y = (i / l + l + o2) % l;
+                // println!("  +({}, {}) = ({}, {}) -> {}", o1, o2, x, y, y*l + x);
+                idx.insert((y*l + x) as usize);
+            }
 
-        let j = h.factor_graph.add_node(n + h.ctr);
-        h.edge_nodes.push(j);
-        for i in &idx {
-            h.factor_graph.add_edge(h.node_nodes[*i], j, 1);
+            let j = h.factor_graph.add_node(n + h.ctr);
+            h.edge_nodes.push(j);
+            for i in &idx {
+                h.factor_graph.add_edge(h.node_nodes[*i], j, 1);
+            }
+            h.ctr += 1;
+            h.edge_set.insert(idx);
         }
-        h.ctr += 1;
-        h.edge_set.insert(idx);
-
-        let mut idx: Set<usize> = Set::new();
-        idx.insert(i);
-        idx.insert((n+i-1) % n); // these are helical boundaries for my convenience
-        idx.insert((n+i-l) % n);
-
-        let j = h.factor_graph.add_node(n + h.ctr);
-        h.edge_nodes.push(j);
-        for i in &idx {
-            h.factor_graph.add_edge(h.node_nodes[*i], j, 1);
-        }
-        h.ctr += 1;
-        h.edge_set.insert(idx);
-
-        let mut idx: Set<usize> = Set::new();
-        idx.insert(i);
-        idx.insert((n+i+1) % n); // these are helical boundaries for my convenience
-        idx.insert((n+i-l) % n);
-
-        let j = h.factor_graph.add_node(n + h.ctr);
-        h.edge_nodes.push(j);
-        for i in &idx {
-            h.factor_graph.add_edge(h.node_nodes[*i], j, 1);
-        }
-        h.ctr += 1;
-        h.edge_set.insert(idx);
-
-        let mut idx: Set<usize> = Set::new();
-        idx.insert(i);
-        idx.insert((n+i-1) % n); // these are helical boundaries for my convenience
-        idx.insert((n+i+l) % n);
-
-        let j = h.factor_graph.add_node(n + h.ctr);
-        h.edge_nodes.push(j);
-        for i in &idx {
-            h.factor_graph.add_edge(h.node_nodes[*i], j, 1);
-        }
-        h.ctr += 1;
-        h.edge_set.insert(idx);
     }
 
     h
+}
+
+pub fn build_hyper_uniform_lattice_3_12(n: usize) -> Hypergraph {
+    let offsets = [
+        [(0, 0), (1, 0), (0, 1)],
+        [(0, 0), (-1, 0), (0, 1)],
+        [(0, 0), (-1, 0), (0, -1)],
+        [(0, 0), (1, 0), (0, -1)],
+    ];
+
+    build_hyper_uniform_lattice(n, &offsets)
+}
+
+pub fn build_hyper_uniform_lattice_5_15(n: usize) -> Hypergraph {
+    let offsets = [
+        [(0, 0), (1, 0), (0, 1), (-1, 0), (0, -1)],
+        [(0, 0), (-1, -1), (-1, 1), (1, 1), (1, -1)],
+        [(0, 0), (2, 0), (0, 2), (-2, 0), (0, -2)],
+    ];
+    build_hyper_uniform_lattice(n, &offsets)
 }
 
 pub fn build_hyper_gaussian_er(n: usize, c: f64, mu: f64, sigma: f64, mut rng: &mut impl Rng) -> Hypergraph {
