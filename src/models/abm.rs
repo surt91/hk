@@ -31,6 +31,7 @@ use super::hypergraph::{
     build_hyper_uniform_ba,
     build_hyper_gaussian_er,
     build_hyper_uniform_lattice_3_12,
+    build_hyper_uniform_lattice_5_15,
 };
 
 use std::fs::File;
@@ -132,6 +133,8 @@ pub enum TopologyModel {
     HyperERGaussian(f64, f64, f64),
     /// Hypergraph with a spatial structure
     HyperLattice_3_12,
+    /// Hypergraph with a spatial structure
+    HyperLattice_5_15,
 }
 
 #[derive(Clone, Debug)]
@@ -399,6 +402,13 @@ pub trait ABM {
                 let n = self.get_agents().len();
 
                 let g = build_hyper_uniform_lattice_3_12(n);
+
+                TopologyRealization::Hypergraph(g)
+            }
+            TopologyModel::HyperLattice_5_15 => {
+                let n = self.get_agents().len();
+
+                let g = build_hyper_uniform_lattice_5_15(n);
 
                 TopologyRealization::Hypergraph(g)
             }
