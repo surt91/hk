@@ -118,6 +118,11 @@ struct Opt {
     /// will be `outname` with a .png extention
     png: bool,
 
+    #[structopt(long)]
+    /// switch whether to measure and save an approximation of the maximum
+    /// betweenness centrality of the active graph over the whole simulation
+    betweenness: bool,
+
     #[structopt(long, default_value = "0.01")]
     /// weight of cost
     eta: f64,
@@ -393,6 +398,7 @@ fn main() -> std::io::Result<()> {
                 }
 
                 let mut ctr = 0;
+                let mut thr = 1.;
                 loop {
                     // draw before the sweep, to get the initial condition
                     // if we only do one sample, we also save a detailed evolution
@@ -407,6 +413,11 @@ fn main() -> std::io::Result<()> {
                         hk.sweep_synchronous();
                     } else {
                         hk.sweep();
+                    }
+
+                    if args.betweenness && thr <= ctr as f64 {
+                        hk.update_max_betweenness();
+                        thr *= 1.5;
                     }
 
                     if hk.get_acc_change() < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {

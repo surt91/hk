@@ -15,6 +15,7 @@ use petgraph::graph::Graph;
 use petgraph::Undirected;
 use super::graph::{
     size_largest_connected_component,
+    max_betweenness_approx,
     build_er,
     build_ba,
     build_cm,
@@ -181,6 +182,7 @@ pub struct ABMinternals {
     acc_change: f32,
     dynamic_density: Vec<Vec<u64>>,
     entropies_acc: Vec<f32>,
+    max_betweenness: f64,
 
     density_slice: Vec<u64>,
 }
@@ -192,6 +194,7 @@ impl ABMinternals {
             dynamic_density: Vec::new(),
             density_slice: vec![0; DENSITYBINS+1],
             entropies_acc: Vec::new(),
+            max_betweenness: 0.,
         }
     }
 }
@@ -695,7 +698,7 @@ pub trait ABM {
     }
 
     fn write_density(&self, file: &mut File) -> std::io::Result<()> {
-            let string_list = self.get_abm_internals().dynamic_density.iter()
+        let string_list = self.get_abm_internals().dynamic_density.iter()
             .map(|x| x.iter().join(" "))
             .join("\n");
         writeln!(file, "{}", string_list)
@@ -728,23 +731,59 @@ pub trait ABM {
         write!(file, "{}", string_list)
     }
 
+    fn betweenness_active(&self, g: &Graph<usize, u32, Undirected>) -> f64 {
+        use petgraph::graph::NodeIndex;
+        let n = g.node_count();
+        // construct a new graph with only active edges
+        let edgelist: Vec<Vec<usize>> = g.edge_indices()
+            .map(|e| {
+                let (u, v) = g.edge_endpoints(e).unwrap();
+                vec![u.index(), v.index()]
+            })
+            .filter(|v| (self.get_agents()[v[0]].opinion - self.get_agents()[v[1]].opinion).abs() <= self.get_agents()[v[0]].tolerance)
+            .collect();
+
+        let mut h = Graph::new_undirected();
+        let node_array: Vec<NodeIndex<u32>> = (0..n).map(|i| h.add_node(i)).collect();
+
+        for e in edgelist {
+            h.add_edge(node_array[e[0]], node_array[e[1]], 1);
+        }
+
+        max_betweenness_approx(&h)
+    }
+
+    fn update_max_betweenness(&mut self) {
+        match self.get_topology() {
+            TopologyRealization::None => (),
+            TopologyRealization::Graph(g) => {
+                let cur_b = self.betweenness_active(g);
+                if cur_b > self.get_abm_internals().max_betweenness {
+                    self.get_mut_abm_internals().max_betweenness = cur_b;
+                }
+            },
+            TopologyRealization::Hypergraph(_) => (),
+        }
+    }
+
     fn write_topology_info(&self, file: &mut File) -> std::io::Result<()> {
-        let (num_components, lcc_num, lcc, mean_degree) = match self.get_topology() {
-            TopologyRealization::None => (1, 1, self.get_num_agents() as usize, self.get_num_agents() as f64 - 1.),
+        let (num_components, lcc_num, lcc, mean_degree, max_betweenness) = match self.get_topology() {
+            TopologyRealization::None => (1, 1, self.get_num_agents() as usize, self.get_num_agents() as f64 - 1., 0.),
             TopologyRealization::Graph(g) => {
                 let (num, size) = size_largest_connected_component(&g);
 
                 let d = 2. * g.edge_count() as f64 / g.node_count() as f64;
 
-                (connected_components(&g), num, size, d)
+                let betweenness = self.get_abm_internals().max_betweenness;
+
+                (connected_components(&g), num, size, d, betweenness)
             },
             TopologyRealization::Hypergraph(g) => {
-                (0, 0, 0, g.mean_deg())
-            }
-            ,
+                (0, 0, 0, g.mean_deg(), 0.)
+            },
         };
 
-        writeln!(file, "{} {} {} {}", num_components, lcc_num, lcc, mean_degree)
+        writeln!(file, "{} {} {} {} {}", num_components, lcc_num, lcc, mean_degree, max_betweenness)
         // println!("n {}, c {}, p {}, m {}, num components: {:?}", n, c, p, m, components);
     }
 

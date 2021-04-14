@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 use rand_distr::{Binomial, Distribution};
 
 use petgraph::graph::{DiGraph, UnGraph, Graph, NodeIndex};
-use petgraph::algo::{tarjan_scc, condensation};
+use petgraph::algo::{tarjan_scc, condensation, astar};
 use petgraph::dot;
 use petgraph::unionfind::UnionFind;
 use petgraph::Undirected;
@@ -54,6 +54,35 @@ pub fn dot2(g: &Graph::<usize, u32, Undirected>) -> String {
 
 pub fn condense(g: &DiGraph::<i32, f32>) -> DiGraph::<i32, f32> {
     condensation(g.clone(), true).map(|_, x| x.len() as i32, |_, x| *x)
+}
+
+// this should be a decent approximation, which should run reasonably fast
+pub fn max_betweenness_approx(g: &UnGraph<usize, u32>) -> f64 {
+    use rand::SeedableRng;
+    use rand_pcg::Pcg64;
+    let mut rng = Pcg64::seed_from_u64(42);
+    let num_samples = 1000;
+    let n = g.node_count();
+
+    let node_array: Vec<NodeIndex<u32>> = g.node_indices().collect();
+    let mut betweenness: HashMap<NodeIndex<u32>, u32> = HashMap::new();
+
+    for _ in 0..num_samples {
+        let a = node_array[rng.gen_range(0, n)];
+        let b = node_array[rng.gen_range(0, n)];
+        let path = astar(g, a, |node| node == b, |_| 1, |_| 0);
+
+        match path {
+            Some((_cost, path)) => {
+                for node in path {
+                    *betweenness.entry(node).or_insert(0) += 1;
+                }
+            }
+            None => (),
+        }
+    }
+
+    *betweenness.values().max().unwrap_or(&0) as f64 / num_samples as f64
 }
 
 pub fn size_largest_connected_component(g : &UnGraph<usize, u32>) -> (usize, usize) {
