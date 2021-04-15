@@ -5,6 +5,7 @@ use std::iter::FromIterator;
 use rand::Rng;
 use rand_distr::{Binomial, Normal, Distribution};
 use rand::seq::SliceRandom;
+use rand::prelude::IteratorRandom;
 
 use petgraph::graph::{UnGraph, Graph, NodeIndex};
 
@@ -71,6 +72,40 @@ impl Hypergraph {
                 }
                 self.ctr += 1;
                 self.edge_set.insert(idx);
+            }
+        }
+    }
+
+    // iterate all hyperedges, replace with prob p a member by a random node
+    pub fn rewire(&mut self, p: f64, mut rng: &mut impl Rng) {
+        for &e in self.edge_nodes.iter() {
+            // with prob p
+            if rng.gen::<f64>() < p {
+                // take a random member
+                let shortcut_idx = self.factor_graph.neighbors(e).choose(&mut rng).unwrap();
+                // and exchange it with a random member of a random edge (we exchange to keep the uniformity)
+                let &other_edge = self.edge_nodes.choose(&mut rng).unwrap();
+                let other = self.factor_graph.neighbors(other_edge).choose(&mut rng).unwrap();
+
+                let e_to_s = self.factor_graph.find_edge(e, shortcut_idx).unwrap();
+                let oe_to_o = self.factor_graph.find_edge(other_edge, other).unwrap();
+                self.factor_graph.remove_edge(e_to_s);
+                self.factor_graph.remove_edge(oe_to_o);
+                self.factor_graph.add_edge(shortcut_idx, other_edge, 1);
+                self.factor_graph.add_edge(other, e, 1);
+
+                // also update the secondary edge set data structure
+                // If I would do this again, I would probably think about using a different design
+                let mut r1: Set<usize> = self.factor_graph.neighbors(e).map(|x| x.index()).collect();
+                let mut r2: Set<usize> = self.factor_graph.neighbors(other_edge).map(|x| x.index()).collect();
+                self.edge_set.remove(&r1);
+                self.edge_set.remove(&r2);
+                r1.remove(&shortcut_idx.index());
+                r2.remove(&other.index());
+                r1.insert(other.index());
+                r2.insert(shortcut_idx.index());
+                self.edge_set.insert(r1);
+                self.edge_set.insert(r2);
             }
         }
     }

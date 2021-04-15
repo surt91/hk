@@ -136,6 +136,8 @@ pub enum TopologyModel {
     HyperLattice_3_12,
     /// Hypergraph with a spatial structure
     HyperLattice_5_15,
+    /// Watts Strogatz Hypergraphs on a 3_12 lattice
+    HyperWSlat(f64),
 }
 
 #[derive(Clone, Debug)]
@@ -407,14 +409,22 @@ pub trait ABM {
                 let g = build_hyper_uniform_lattice_3_12(n);
 
                 TopologyRealization::Hypergraph(g)
-            }
+            },
             TopologyModel::HyperLattice_5_15 => {
                 let n = self.get_agents().len();
 
                 let g = build_hyper_uniform_lattice_5_15(n);
 
                 TopologyRealization::Hypergraph(g)
-            }
+            },
+            TopologyModel::HyperWSlat(p) => {
+                let n = self.get_agents().len();
+
+                let mut g = build_hyper_uniform_lattice_3_12(n);
+                g.rewire(*p, &mut self.get_rng());
+
+                TopologyRealization::Hypergraph(g)
+            },
         }
     }
 

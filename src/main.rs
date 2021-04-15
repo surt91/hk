@@ -64,7 +64,7 @@ struct Opt {
     /// maximal resources for HKCost
     max_resources: f64,
 
-    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16"])]
+    #[structopt(long, default_value = "1", possible_values = &["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"])]
     /// topology:{n}
     /// 1 => fully connected{n}
     /// 2 => Erdoes Renyi{n}
@@ -82,6 +82,8 @@ struct Opt {
     /// 14 => Hyper-Erdoes-Renyi, Gaussian distributed orders{n}
     /// 15 => Hypergraph with nearest neighbor square lattice structure, c = 12, k = 3{n}
     /// 16 => Hypergraph with third nearest neighbor square lattice structure, c = 15, k = 5{n}
+    /// 17 => Watts-Strogatz small world network on a Hypergraph with third nearest neighbor
+    ///       square lattice structure, c = 12, k = 3{n}
     topology: u32,
 
     #[structopt(long, default_value = "1", allow_hyphen_values = true)]
@@ -96,6 +98,7 @@ struct Opt {
     /// HyperBA: m{n}
     /// Hyper-ER 2: c1{n}
     /// Hyper-ER Gaussian: c (scale factor){n}
+    /// Hyper-WS: rewiring probability{n}
     topology_parameter: f32,
 
     #[structopt(long, default_value = "1")]
@@ -303,6 +306,7 @@ fn main() -> std::io::Result<()> {
         ),
         15 => TopologyModel::HyperLattice_3_12,
         16 => TopologyModel::HyperLattice_5_15,
+        17 => TopologyModel::HyperWSlat(args.topology_parameter as f64),
         _ => unreachable!(),
     };
 
