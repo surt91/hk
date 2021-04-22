@@ -15,6 +15,8 @@ use super::abm::ABMinternals;
 
 use petgraph::graph::NodeIndex;
 
+use largedev::{MarkovChain, Model};
+
 impl ABMBuilder {
     pub fn dw(&self) -> Deffuant {
         let rng = Pcg64::seed_from_u64(self.seed);
@@ -30,6 +32,10 @@ impl ABMBuilder {
             topology_model: self.topology_model.clone(),
             abm_internals: ABMinternals::new(),
             rng,
+            undo_idx: 0,
+            undo_val: 0.,
+            rn: Vec::new(),
+            ctr: 0,
             agents_initial: agents,
         };
 
@@ -61,6 +67,10 @@ pub struct Deffuant {
     rng: Pcg64,
 
     // for Markov chains
+    undo_idx: usize,
+    undo_val: f64,
+    rn: Vec<f64>,
+    ctr: usize,
     pub agents_initial: Vec<Agent>,
 }
 
@@ -145,17 +155,25 @@ impl Deffuant {
         let old_opinion;
         let new_opinion = match &self.topology {
             TopologyRealization::None => {
+                if self.ctr+2 >= self.rn.len() {
+                    for _ in 0..std::cmp::max(self.rn.len(), 100) {
+                        self.rn.push(self.rng.gen())
+                    }
+                }
+
                 // get a random agent
-                let idx = self.rng.gen_range(0, self.num_agents) as usize;
+                let idx = (self.rn[self.ctr] * self.num_agents as f64) as usize;
+                self.ctr += 1;
                 let i = &self.agents[idx];
                 old_opinion = i.opinion;
 
-                let idx2 = loop{
-                    let tmp = self.rng.gen_range(0, self.num_agents) as usize;
-                    if tmp != idx {
-                        break tmp
-                    }
-                };
+                let mut tmp = (self.rn[self.ctr] * (self.num_agents-1) as f64) as usize;
+                self.ctr += 1;
+                if tmp == idx {
+                    tmp = self.num_agents as usize - 1 ;
+                }
+                let idx2 = tmp;
+
                 if (i.opinion - self.agents[idx2].opinion).abs() < i.tolerance {
                     let new_opinion = (i.opinion + self.agents[idx2].opinion) / 2.;
                     // change the opinion of both endpoints
@@ -220,5 +238,44 @@ impl Deffuant {
         };
 
         self.acc_change((old_opinion - new_opinion).abs());
+    }
+}
+
+
+impl Model for Deffuant {
+    fn value(&self) -> f64 {
+        self.cluster_max() as f64 / self.num_agents as f64
+    }
+}
+
+impl MarkovChain for Deffuant {
+    fn change(&mut self, rng: &mut impl Rng) {
+        self.undo_idx = rng.gen_range(0, self.ctr);
+        let val: f64 = rng.gen();
+        let n = self.agents.len();
+        self.undo_val = if self.undo_idx < n {
+            let tmp = self.agents_initial[self.undo_idx].initial_opinion as f64;
+            self.agents_initial[self.undo_idx].opinion = val as f32;
+            self.agents_initial[self.undo_idx].initial_opinion = val as f32;
+            tmp
+        } else {
+            let tmp = self.rn[self.undo_idx - n];
+            self.rn[self.undo_idx - n] = val;
+            tmp
+        };
+
+        self.agents = self.agents_initial.clone();
+        self.ctr = 0;
+        self.relax();
+    }
+
+    fn undo(&mut self) {
+        let n = self.agents.len();
+        if self.undo_idx < n {
+            self.agents_initial[self.undo_idx].initial_opinion = self.undo_val as f32;
+            self.agents_initial[self.undo_idx].opinion = self.undo_val as f32;
+        } else {
+            self.rn[self.undo_idx - n] = self.undo_val;
+        }
     }
 }
