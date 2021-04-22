@@ -317,7 +317,7 @@ fn main() -> std::io::Result<()> {
             .resource_model(resource_model)
             .population_model(pop_model)
             .topology_model(topology_model)
-            .dw();
+            .hk();
         hk.reset();
         hk.relax();
 
