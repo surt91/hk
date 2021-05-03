@@ -15,7 +15,7 @@ use super::abm::ABMinternals;
 use petgraph::graph::NodeIndex;
 
 impl ABMBuilder {
-    pub fn rewiring(&mut self) -> RewDeffuant {
+    pub fn rewiring(&mut self, mut rng: &mut impl Rng) -> RewDeffuant {
         let agents: Vec<Agent> = Vec::new();
 
         let mut dw = RewDeffuant {
@@ -31,7 +31,7 @@ impl ABMBuilder {
             agents_initial: agents,
         };
 
-        dw.reset(&mut self.rng);
+        dw.reset(&mut rng);
         dw
     }
 }

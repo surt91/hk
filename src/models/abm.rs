@@ -1,9 +1,8 @@
 
 use std::path::Path;
 
-use rand::{Rng, SeedableRng};
+use rand::Rng;
 use rand_distr::{Normal, Pareto, Distribution};
-use rand_pcg::Pcg64;
 
 #[cfg(feature = "graphtool")]
 use ordered_float::OrderedFloat;
@@ -832,13 +831,10 @@ pub struct ABMBuilder {
     pub(super) resource_model: ResourceModel,
     pub(super) population_model: PopulationModel,
     pub(super) topology_model: TopologyModel,
-
-    pub(super) rng: Pcg64,
 }
 
 impl ABMBuilder {
     pub fn new(num_agents: u32) -> ABMBuilder {
-        let rng = Pcg64::seed_from_u64(42);
         ABMBuilder {
             num_agents,
 
@@ -846,8 +842,6 @@ impl ABMBuilder {
             resource_model: ResourceModel::Uniform(0., 1.),
             population_model: PopulationModel::Uniform(0., 1.),
             topology_model: TopologyModel::FullyConnected,
-
-            rng,
         }
     }
 
@@ -868,11 +862,6 @@ impl ABMBuilder {
 
     pub fn topology_model(&mut self, topology_model: TopologyModel) -> &mut ABMBuilder {
         self.topology_model = topology_model;
-        self
-    }
-
-    pub fn seed(&mut self, seed: u64) -> &mut ABMBuilder {
-        self.rng = Pcg64::seed_from_u64(seed);
         self
     }
 }

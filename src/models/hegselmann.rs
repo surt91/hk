@@ -21,7 +21,7 @@ use largedev::{MarkovChain, Model};
 
 
 impl ABMBuilder {
-    pub fn hk(&mut self) -> HegselmannKrause {
+    pub fn hk(&mut self, mut rng: &mut impl Rng) -> HegselmannKrause {
         let agents: Vec<Agent> = Vec::new();
 
         // datastructure for `step_bisect`
@@ -43,7 +43,7 @@ impl ABMBuilder {
             abm_internals: ABMinternals::new(),
         };
 
-        hk.reset(&mut self.rng);
+        hk.reset(&mut rng);
         hk
     }
 }

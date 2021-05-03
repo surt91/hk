@@ -13,17 +13,15 @@ mod tests {
 
     #[test]
     fn test_cmp_naive_bisect() {
-        let mut hk1 = ABMBuilder::new(100)
-            .population_model(PopulationModel::Uniform(0., 1.))
-            .seed(13)
-            .hk();
-        let mut hk2 = ABMBuilder::new(100)
-            .population_model(PopulationModel::Uniform(0., 1.))
-            .seed(13)
-            .hk();
-
         let mut rng1 = Pcg64::seed_from_u64(42);
         let mut rng2 = Pcg64::seed_from_u64(42);
+
+        let mut hk1 = ABMBuilder::new(100)
+            .population_model(PopulationModel::Uniform(0., 1.))
+            .hk(&mut rng1);
+        let mut hk2 = ABMBuilder::new(100)
+            .population_model(PopulationModel::Uniform(0., 1.))
+            .hk(&mut rng2);
 
         for _ in 0..100 {
             // println!("{}", i);
@@ -37,14 +35,15 @@ mod tests {
 
     #[test]
     fn test_cmp_sync() {
+        let mut rng1 = Pcg64::seed_from_u64(42);
+        let mut rng2 = Pcg64::seed_from_u64(42);
+
         let mut hk1 = ABMBuilder::new(100)
             .population_model(PopulationModel::Uniform(0., 1.))
-            .seed(13)
-            .hk();
+            .hk(&mut rng1);
         let mut hk2 = ABMBuilder::new(100)
             .population_model(PopulationModel::Uniform(0., 1.))
-            .seed(13)
-            .hk();
+            .hk(&mut rng2);
 
         for _ in 0..100 {
             hk1.sweep_synchronous_naive();

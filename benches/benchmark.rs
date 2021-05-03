@@ -11,14 +11,14 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut hk = ABMBuilder::new(100)
-        .seed(13)
-        .population_model(PopulationModel::Uniform(0., 1.))
-        .hk();
-
+    let mut rng0 = Pcg64::seed_from_u64(13);
     let mut rng1 = Pcg64::seed_from_u64(42);
     let mut rng2 = Pcg64::seed_from_u64(42);
     let mut rng3 = Pcg64::seed_from_u64(42);
+
+    let mut hk = ABMBuilder::new(100)
+        .population_model(PopulationModel::Uniform(0., 1.))
+        .hk(&mut rng0);
 
     hk.reset(&mut rng1);
     c.bench_function("hk N=1000 sweep", |b| b.iter(|| hk.sweep(&mut rng1)));

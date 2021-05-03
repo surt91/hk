@@ -314,12 +314,11 @@ fn main() -> std::io::Result<()> {
 
     if let Some(LargeDev::Metropolis) = args.cmd {
         let mut hk = ABMBuilder::new(args.num_agents)
-            .seed(rng.gen())
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .topology_model(topology_model)
-            .hk();
+            .hk(&mut rng);
         hk.reset(&mut rng);
         hk.relax(&mut rng);
 
@@ -342,12 +341,11 @@ fn main() -> std::io::Result<()> {
 
     if let Some(LargeDev::WangLandau(wl)) = args.cmd {
         let mut hk = ABMBuilder::new(args.num_agents)
-            .seed(rng.gen())
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .topology_model(topology_model)
-            .hk();
+            .hk(&mut rng);
         hk.reset(&mut rng);
         hk.relax(&mut rng);
 
@@ -371,12 +369,11 @@ fn main() -> std::io::Result<()> {
     match args.model {
         1 | 3 | 5 => {
             let mut hk = ABMBuilder::new(args.num_agents)
-                .seed(rng.gen())
                 .cost_model(cost_model)
                 .resource_model(resource_model)
                 .population_model(pop_model)
                 .topology_model(topology_model)
-                .hk();
+                .hk(&mut rng);
 
             let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
             let mut out_nopoor = Output::new(&args.outname, "nopoor.dat", &args.tmp)?;
@@ -463,10 +460,9 @@ fn main() -> std::io::Result<()> {
         },
         9 => {
             let mut dw = ABMBuilder::new(args.num_agents)
-                .seed(rng.gen())
                 .population_model(pop_model)
                 .topology_model(topology_model)
-                .dw();
+                .dw(&mut rng);
 
             let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
             let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
@@ -541,10 +537,9 @@ fn main() -> std::io::Result<()> {
         },
         11 => {
             let mut rew = ABMBuilder::new(args.num_agents)
-                .seed(rng.gen())
                 .population_model(pop_model)
                 .topology_model(topology_model)
-                .rewiring();
+                .rewiring(&mut rng);
 
             let mut out_cluster = Output::new(&args.outname, "cluster.dat", &args.tmp)?;
             let mut out_density = Output::new(&args.outname, "density.dat", &args.tmp)?;
