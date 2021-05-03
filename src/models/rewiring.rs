@@ -228,13 +228,16 @@ impl RewDeffuant {
             };
             // rewire the graph accordingly
             if let TopologyRealization::Hypergraph(h) = &mut self.topology {
-                h.factor_graph.add_edge(leaving, new_edge, 1);
-                h.factor_graph.add_edge(other, changed_edge, 1);
+                // do nothing, if we chose the same hyperedge by chance
+                if new_edge != changed_edge {
+                    h.factor_graph.add_edge(leaving, new_edge, 1);
+                    h.factor_graph.add_edge(other, changed_edge, 1);
 
-                let to_remove = h.factor_graph.find_edge(leaving, changed_edge).unwrap();
-                h.factor_graph.remove_edge(to_remove);
-                let to_remove = h.factor_graph.find_edge(other, new_edge).unwrap();
-                h.factor_graph.remove_edge(to_remove);
+                    let to_remove = h.factor_graph.find_edge(leaving, changed_edge).unwrap();
+                    h.factor_graph.remove_edge(to_remove);
+                    let to_remove = h.factor_graph.find_edge(other, new_edge).unwrap();
+                    h.factor_graph.remove_edge(to_remove);
+                }
             };
         }
     }
