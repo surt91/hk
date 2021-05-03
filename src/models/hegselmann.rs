@@ -6,8 +6,7 @@ use std::collections::BTreeMap;
 use std::ops::Bound::Included;
 use std::fmt;
 
-use rand::{Rng, SeedableRng};
-use rand_pcg::Pcg64;
+use rand::Rng;
 
 use ordered_float::OrderedFloat;
 
@@ -22,8 +21,7 @@ use largedev::{MarkovChain, Model};
 
 
 impl ABMBuilder {
-    pub fn hk(&self) -> HegselmannKrause {
-        let rng = Pcg64::seed_from_u64(self.seed);
+    pub fn hk(&mut self) -> HegselmannKrause {
         let agents: Vec<Agent> = Vec::new();
 
         // datastructure for `step_bisect`
@@ -39,14 +37,13 @@ impl ABMBuilder {
             population_model: self.population_model.clone(),
             topology_model: self.topology_model.clone(),
             opinion_set,
-            rng,
             undo_idx: 0,
             undo_val: 0.,
             agents_initial: agents,
             abm_internals: ABMinternals::new(),
         };
 
-        hk.reset();
+        hk.reset(&mut self.rng);
         hk
     }
 }
@@ -67,10 +64,6 @@ pub struct HegselmannKrause {
     topology_model: TopologyModel,
 
     pub opinion_set: BTreeMap<OrderedFloat<f32>, u32>,
-
-    // we need many, good (but not crypto) random numbers
-    // we will use here the pcg generator
-    rng: Pcg64,
 
     // for Markov chains
     undo_idx: usize,
@@ -93,15 +86,15 @@ impl fmt::Debug for HegselmannKrause {
 }
 
 impl ABM for HegselmannKrause {
-    fn sweep(&mut self) {
+    fn sweep(&mut self, mut _rng: &mut impl Rng) {
         self.sweep_synchronous()
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self, mut rng: &mut impl Rng) {
         self.agents = (0..self.num_agents).map(|_| {
-            let xi = self.gen_init_opinion();
-            let ei = self.gen_init_tolerance();
-            let ci = self.gen_init_resources(ei);
+            let xi = self.gen_init_opinion(&mut rng);
+            let ei = self.gen_init_tolerance(&mut rng);
+            let ci = self.gen_init_resources(ei, &mut rng);
             Agent::new(
                 xi,
                 ei,
@@ -111,7 +104,7 @@ impl ABM for HegselmannKrause {
 
         self.agents_initial = self.agents.clone();
 
-        self.topology = self.gen_init_topology();
+        self.topology = self.gen_init_topology(&mut rng);
 
         self.prepare_opinion_set();
         self.time = 0;
@@ -147,10 +140,6 @@ impl ABM for HegselmannKrause {
 
     fn get_time(&self) -> usize {
         self.time
-    }
-
-    fn get_rng(&mut self) -> &mut Pcg64 {
-        &mut self.rng
     }
 }
 
@@ -210,9 +199,9 @@ impl HegselmannKrause {
         (new_opinion, new_resources)
     }
 
-    pub fn step_naive(&mut self) {
+    pub fn step_naive(&mut self, rng: &mut impl Rng) {
         // get a random agent
-        let idx = self.rng.gen_range(0, self.num_agents) as usize;
+        let idx = rng.gen_range(0, self.num_agents) as usize;
         let i = &self.agents[idx];
 
         let (sum, count) = match &self.topology {
@@ -243,9 +232,9 @@ impl HegselmannKrause {
 
     }
 
-    pub fn step_bisect(&mut self) {
+    pub fn step_bisect(&mut self, rng: &mut impl Rng) {
         // get a random agent
-        let idx = self.rng.gen_range(0, self.num_agents) as usize;
+        let idx = rng.gen_range(0, self.num_agents) as usize;
         let i = &self.agents[idx];
 
         if self.topology_model != TopologyModel::FullyConnected {
@@ -379,12 +368,12 @@ impl HegselmannKrause {
         self.time += 1;
     }
 
-    pub fn sweep_async(&mut self) {
+    pub fn sweep_async(&mut self, mut rng: &mut impl Rng) {
         for _ in 0..self.num_agents {
             match self.topology_model {
                 // For topologies with few connections, use `step_naive`, otherwise the `step_bisect`
-                TopologyModel::FullyConnected => self.step_bisect(),
-                _ => self.step_naive(),
+                TopologyModel::FullyConnected => self.step_bisect(&mut rng),
+                _ => self.step_naive(&mut rng),
             }
         }
         self.add_state_to_density();
@@ -399,7 +388,7 @@ impl Model for HegselmannKrause {
 }
 
 impl MarkovChain for HegselmannKrause {
-    fn change(&mut self, rng: &mut impl Rng) {
+    fn change(&mut self, mut rng: &mut impl Rng) {
         self.undo_idx = rng.gen_range(0, self.agents.len());
         let val: f32 = rng.gen();
         self.undo_val = self.agents_initial[self.undo_idx].initial_opinion;
@@ -410,7 +399,7 @@ impl MarkovChain for HegselmannKrause {
         self.agents = self.agents_initial.clone();
         self.prepare_opinion_set();
 
-        self.relax();
+        self.relax(&mut rng);
     }
 
     fn undo(&mut self) {

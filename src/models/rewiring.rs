@@ -4,8 +4,7 @@
 
 use std::fmt;
 
-use rand::{Rng, SeedableRng};
-use rand_pcg::Pcg64;
+use rand::Rng;
 use rand::seq::IteratorRandom;
 use ordered_float::OrderedFloat;
 
@@ -13,11 +12,10 @@ use super::{PopulationModel, TopologyModel, TopologyRealization, ResourceModel, 
 use super::{ABM, ABMBuilder};
 use super::abm::ABMinternals;
 
-use petgraph::graph::{UnGraph, Graph, NodeIndex};
+use petgraph::graph::NodeIndex;
 
 impl ABMBuilder {
-    pub fn rewiring(&self) -> RewDeffuant {
-        let rng = Pcg64::seed_from_u64(self.seed);
+    pub fn rewiring(&mut self) -> RewDeffuant {
         let agents: Vec<Agent> = Vec::new();
 
         let mut dw = RewDeffuant {
@@ -30,11 +28,10 @@ impl ABMBuilder {
             population_model: self.population_model.clone(),
             topology_model: self.topology_model.clone(),
             abm_internals: ABMinternals::new(),
-            rng,
             agents_initial: agents,
         };
 
-        dw.reset();
+        dw.reset(&mut self.rng);
         dw
     }
 }
@@ -60,10 +57,6 @@ pub struct RewDeffuant {
 
     abm_internals: ABMinternals,
 
-    // we need many, good (but not crypto) random numbers
-    // we will use here the pcg generator
-    rng: Pcg64,
-
     // for Markov chains
     pub agents_initial: Vec<Agent>,
 }
@@ -81,18 +74,18 @@ impl fmt::Debug for RewDeffuant {
 }
 
 impl ABM for RewDeffuant {
-    fn sweep(&mut self) {
+    fn sweep(&mut self, mut rng: &mut impl Rng) {
         for _ in 0..self.num_agents {
-            self.step_naive()
+            self.step_naive(&mut rng)
         }
         self.add_state_to_density();
         self.time += 1;
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self, mut rng: &mut impl Rng) {
         self.agents = (0..self.num_agents).map(|_| {
-            let xi = self.gen_init_opinion();
-            let ei = self.gen_init_tolerance();
+            let xi = self.gen_init_opinion(&mut rng);
+            let ei = self.gen_init_tolerance(&mut rng);
             Agent::new(
                 xi,
                 ei,
@@ -102,7 +95,7 @@ impl ABM for RewDeffuant {
 
         self.agents_initial = self.agents.clone();
 
-        self.topology = self.gen_init_topology();
+        self.topology = self.gen_init_topology(&mut rng);
 
         self.time = 0;
     }
@@ -137,10 +130,6 @@ impl ABM for RewDeffuant {
 
     fn get_time(&self) -> usize {
         self.time
-    }
-
-    fn get_rng(&mut self) -> &mut Pcg64 {
-        &mut self.rng
     }
 }
 
@@ -177,13 +166,13 @@ impl RewDeffuant {
     }
 
 
-    pub fn step_naive(&mut self) {
+    pub fn step_naive(&mut self, mut rng: &mut impl Rng) {
         let old_opinion;
         let (new_opinion, changed_edge) = match &self.topology {
             TopologyRealization::Hypergraph(h) => {
                 // get a random, non-empty hyperdege
                 let e = loop {
-                    let e = h.edge_nodes.iter().choose(&mut self.rng).unwrap();
+                    let e = h.edge_nodes.iter().choose(&mut rng).unwrap();
                     if h.factor_graph.neighbors(*e).count() > 0 {
                         break *e
                     };
@@ -211,33 +200,37 @@ impl RewDeffuant {
         if let Some(new_o) = new_opinion {
             self.acc_change((old_opinion - new_o).abs());
         } else {
-            if let TopologyRealization::Hypergraph(h) = &mut self.topology {
-                let e = changed_edge;
+            let leaving;
+            let new_edge;
+            let e = changed_edge;
+            if let TopologyRealization::Hypergraph(h) = &self.topology {
                 // since they could not reach an agreement, a random agent leaves this hyperedge
                 // frustrated and is exchanged with a random agent or another frustrated agent
-                let leaving = h.factor_graph.neighbors(e).choose(&mut self.rng).unwrap();
-                let new_edge = if self.both_frust {
+                leaving = h.factor_graph.neighbors(e).choose(&mut rng).unwrap().clone();
+                new_edge = if self.both_frust {
                     // get random hyperedges, until we find one which is frustrated
                     // that can also be the same hyperedge, which solves the problem
                     // in the case that there is only one frustrated edge
-                    h.edge_nodes.iter().filter(|&&e| self.hyperedge_is_frustrated(e)).choose(&mut self.rng).unwrap()
+                    h.edge_nodes.iter().filter(|&&e| self.hyperedge_is_frustrated(e)).choose(&mut rng).unwrap()
                 } else {
                     // just get a random edge
                     loop {
-                        let tmp = h.edge_nodes.iter().choose(&mut self.rng).unwrap();
+                        let tmp = h.edge_nodes.iter().choose(&mut rng).unwrap();
                         // make sure to not choose the same edge
                         // TODO: maybe we should remove this for consistency with the above case
                         if h.factor_graph.find_edge(*tmp, leaving).is_none() {
                             break tmp
                         }
                     }
-                };
-
-
-                h.factor_graph.add_edge(leaving, *new_edge, 1);
+                }.clone();
+            } else {
+                panic!("only implemented for hypergraphs");
+            };
+            if let TopologyRealization::Hypergraph(h) = &mut self.topology {
+                h.factor_graph.add_edge(leaving, new_edge, 1);
                 let to_remove = h.factor_graph.find_edge(leaving, e).unwrap();
                 h.factor_graph.remove_edge(to_remove);
-            }
+            };
         }
     }
 }

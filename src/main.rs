@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
 use itertools::Itertools;
 
@@ -310,20 +310,22 @@ fn main() -> std::io::Result<()> {
         _ => unreachable!(),
     };
 
+    let mut rng = Pcg64::seed_from_u64(args.seed);
+
     if let Some(LargeDev::Metropolis) = args.cmd {
         let mut hk = ABMBuilder::new(args.num_agents)
-            .seed(args.seed)
+            .seed(rng.gen())
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .topology_model(topology_model)
             .hk();
-        hk.reset();
-        hk.relax();
+        hk.reset(&mut rng);
+        hk.relax(&mut rng);
 
         let mut out = Output::new(&args.outname, "mcmc.dat", &args.tmp)?;
 
-        let mut mc_rng = Pcg64::seed_from_u64(args.seed+1);
+        let mut mc_rng = Pcg64::seed_from_u64(rng.gen());
 
         let (tries, rejects) = Metropolis::new(hk)
                 .temperature(args.temperature)
@@ -340,18 +342,18 @@ fn main() -> std::io::Result<()> {
 
     if let Some(LargeDev::WangLandau(wl)) = args.cmd {
         let mut hk = ABMBuilder::new(args.num_agents)
-            .seed(args.seed)
+            .seed(rng.gen())
             .cost_model(cost_model)
             .resource_model(resource_model)
             .population_model(pop_model)
             .topology_model(topology_model)
             .hk();
-        hk.reset();
-        hk.relax();
+        hk.reset(&mut rng);
+        hk.relax(&mut rng);
 
         let mut out = Output::new(&args.outname, "mcmc.dat", &args.tmp)?;
 
-        let mut mc_rng = Pcg64::seed_from_u64(args.seed+1);
+        let mut mc_rng = Pcg64::seed_from_u64(rng.gen());
 
         let (tries, rejects) = WangLandau::new(hk, wl.low, wl.high)
                 .bins(wl.num_bins)
@@ -369,7 +371,7 @@ fn main() -> std::io::Result<()> {
     match args.model {
         1 | 3 | 5 => {
             let mut hk = ABMBuilder::new(args.num_agents)
-                .seed(args.seed)
+                .seed(rng.gen())
                 .cost_model(cost_model)
                 .resource_model(resource_model)
                 .population_model(pop_model)
@@ -390,7 +392,7 @@ fn main() -> std::io::Result<()> {
             write!(out_info.file(), "{}\n{}\n", info_version, info_args)?;
 
             for _ in 0..args.samples {
-                hk.reset();
+                hk.reset(&mut rng);
 
                 if args.png {
                     hk.write_graph_png(&args.outname.with_extension("init.png"), true)?;
@@ -416,7 +418,7 @@ fn main() -> std::io::Result<()> {
                     if args.sync {
                         hk.sweep_synchronous();
                     } else {
-                        hk.sweep();
+                        hk.sweep(&mut rng);
                     }
 
                     if args.betweenness && thr <= ctr as f64 {
@@ -461,7 +463,7 @@ fn main() -> std::io::Result<()> {
         },
         9 => {
             let mut dw = ABMBuilder::new(args.num_agents)
-                .seed(args.seed)
+                .seed(rng.gen())
                 .population_model(pop_model)
                 .topology_model(topology_model)
                 .dw();
@@ -478,7 +480,7 @@ fn main() -> std::io::Result<()> {
             write!(out_info.file(), "{}\n{}\n", info_version, info_args)?;
 
             for _ in 0..args.samples {
-                dw.reset();
+                dw.reset(&mut rng);
 
                 if args.png {
                     dw.write_graph_png(&args.outname.with_extension("init.png"), true)?;
@@ -495,6 +497,9 @@ fn main() -> std::io::Result<()> {
                     // if we only do one sample, we also save a detailed evolution
                     if args.samples == 1 {
                         dw.write_state(out_detailed.file())?;
+                        if ctr % 1 == 0 {
+                            dw.write_state_png(&args.outname.with_extension(format!("{:04}.png", ctr)))?;
+                        }
                     }
 
                     // test if we are converged
@@ -503,7 +508,7 @@ fn main() -> std::io::Result<()> {
                     if args.sync {
                         unimplemented!();
                     } else {
-                        dw.sweep();
+                        dw.sweep(&mut rng);
                     }
 
                     if dw.get_acc_change() < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
@@ -536,7 +541,7 @@ fn main() -> std::io::Result<()> {
         },
         11 => {
             let mut rew = ABMBuilder::new(args.num_agents)
-                .seed(args.seed)
+                .seed(rng.gen())
                 .population_model(pop_model)
                 .topology_model(topology_model)
                 .rewiring();
@@ -553,7 +558,7 @@ fn main() -> std::io::Result<()> {
             write!(out_info.file(), "{}\n{}\n", info_version, info_args)?;
 
             for _ in 0..args.samples {
-                rew.reset();
+                rew.reset(&mut rng);
 
                 if args.png {
                     rew.write_graph_png(&args.outname.with_extension("init.png"), true)?;
@@ -578,7 +583,7 @@ fn main() -> std::io::Result<()> {
                     if args.sync {
                         unimplemented!();
                     } else {
-                        rew.sweep();
+                        rew.sweep(&mut rng);
                     }
 
                     if rew.get_acc_change() < ACC_EPS || (args.iterations > 0 && ctr > args.iterations) {
@@ -612,7 +617,6 @@ fn main() -> std::io::Result<()> {
         10 => {
             use counter::Counter;
             use hk::models::hypergraph::build_hyper_uniform_ba;
-            let mut rng = Pcg64::seed_from_u64(args.seed);
             if args.topology != 10 {
                 println!("only implemented for HyperBA yet");
                 unimplemented!()

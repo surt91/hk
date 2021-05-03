@@ -401,7 +401,7 @@ pub fn build_ws_lattice(n: usize, k: usize, p: f64, rng: &mut impl Rng) -> Graph
     // with a probability of p, rewire it, avoiding self- and multi-edges
     for e in g.edge_indices() {
         if rng.gen::<f64>() < p {
-            let (u, v) = g.edge_endpoints(e).unwrap();
+            let (u, _v) = g.edge_endpoints(e).unwrap();
             g.remove_edge(e);
             let mut vp;
             while {

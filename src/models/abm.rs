@@ -1,7 +1,7 @@
 
 use std::path::Path;
 
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 use rand_distr::{Normal, Pareto, Distribution};
 use rand_pcg::Pcg64;
 
@@ -202,8 +202,8 @@ impl ABMinternals {
 }
 
 pub trait ABM {
-    fn sweep(&mut self);
-    fn reset(&mut self);
+    fn sweep(&mut self, rng: &mut impl Rng);
+    fn reset(&mut self, rng: &mut impl Rng);
 
     // getter methods to access fields
     fn get_population_model(&self) -> PopulationModel;
@@ -212,7 +212,6 @@ pub trait ABM {
     fn get_topology(&self) -> &TopologyRealization;
     fn get_agents(&self) -> &Vec<Agent>;
     fn get_time(&self) -> usize;
-    fn get_rng(&mut self) -> &mut Pcg64;
 
     fn get_mut_abm_internals(&mut self) -> &mut ABMinternals;
     fn get_abm_internals(&self) -> &ABMinternals;
@@ -233,45 +232,45 @@ pub trait ABM {
         self.get_agents().len() as u32
     }
 
-    fn relax(&mut self) {
+    fn relax(&mut self, mut rng: &mut impl Rng) {
         self.get_mut_abm_internals().acc_change = ACC_EPS;
 
         // println!("{:?}", self.agents);
         while self.get_abm_internals().acc_change >= ACC_EPS {
             self.get_mut_abm_internals().acc_change = 0.;
-            self.sweep();
+            self.sweep(&mut rng);
         }
     }
 
-    fn gen_init_opinion(&mut self) -> f32 {
+    fn gen_init_opinion(&mut self, rng: &mut impl Rng) -> f32 {
         match self.get_population_model() {
             PopulationModel::Bridgehead(x_init, x_spread, frac, _eps_init, _eps_spread, _eps_min, _eps_max) => {
-                if self.get_rng().gen::<f32>() > frac {
-                    self.get_rng().gen()
+                if rng.gen::<f32>() > frac {
+                    rng.gen()
                 } else {
-                    stretch(self.get_rng().gen(), x_init-x_spread, x_init+x_spread)
+                    stretch(rng.gen(), x_init-x_spread, x_init+x_spread)
                 }
             },
-            _ => self.get_rng().gen(),
+            _ => rng.gen(),
         }
     }
 
-    fn gen_init_tolerance(&mut self) -> f32 {
+    fn gen_init_tolerance(&mut self, mut rng: &mut impl Rng) -> f32 {
         match self.get_population_model() {
-            PopulationModel::Uniform(min, max) => stretch(self.get_rng().gen(), min, max),
-            PopulationModel::Bimodal(first, second) => if self.get_rng().gen::<f32>() < 0.5 {first} else {second},
+            PopulationModel::Uniform(min, max) => stretch(rng.gen(), min, max),
+            PopulationModel::Bimodal(first, second) => if rng.gen::<f32>() < 0.5 {first} else {second},
             PopulationModel::Bridgehead(_x_init, _x_spread, frac, eps_init, eps_spread, eps_min, eps_max) => {
-                if self.get_rng().gen::<f32>() > frac {
-                    stretch(self.get_rng().gen(), eps_min, eps_max)
+                if rng.gen::<f32>() > frac {
+                    stretch(rng.gen(), eps_min, eps_max)
                 } else {
-                    stretch(self.get_rng().gen(), eps_init-eps_spread, eps_init+eps_spread)
+                    stretch(rng.gen(), eps_init-eps_spread, eps_init+eps_spread)
                 }
             },
             PopulationModel::Gaussian(mean, sdev) => {
                 let gauss = Normal::new(mean, sdev).unwrap();
                 // draw gaussian RN until you get one in range
                 loop {
-                    let x = gauss.sample(&mut self.get_rng());
+                    let x = gauss.sample(&mut rng);
                     if x <= 1. && x >= 0. {
                         break x
                     }
@@ -279,42 +278,42 @@ pub trait ABM {
             },
             PopulationModel::PowerLaw(min, exponent) => {
                 let pareto = Pareto::new(min, exponent - 1.).unwrap();
-                pareto.sample(&mut self.get_rng())
+                pareto.sample(&mut rng)
             }
             PopulationModel::PowerLawBound(min, max, exponent) => {
                 // http://mathworld.wolfram.com/RandomNumber.html
                 fn powerlaw(y: f32, low: f32, high: f32, alpha: f32) -> f32 {
                     ((high.powf(alpha+1.) - low.powf(alpha+1.))*y + low.powf(alpha+1.)).powf(1./(alpha+1.))
                 }
-                powerlaw(self.get_rng().gen(), min, max, exponent)
+                powerlaw(rng.gen(), min, max, exponent)
             }
         }
     }
 
-    fn gen_init_topology(&mut self) -> TopologyRealization {
+    fn gen_init_topology(&mut self, mut rng: &mut impl Rng) -> TopologyRealization {
         match &self.get_topology_model() {
             TopologyModel::FullyConnected => TopologyRealization::None,
             TopologyModel::ER(c) => {
                 let n = self.get_agents().len();
                 let g = loop {
-                    let tmp = build_er(n, *c as f64, &mut self.get_rng());
+                    let tmp = build_er(n, *c as f64, &mut rng);
                     if size_largest_connected_component(&tmp).0 == 1 {
                         break tmp
                     }
                 };
-                // let g = build_er(n, *c as f64, &mut self.get_rng());
+                // let g = build_er(n, *c as f64, &mut rng);
 
                 TopologyRealization::Graph(g)
             },
             TopologyModel::BA(degree, m0) => {
                 let n = self.get_agents().len();
-                let g = build_ba(n, *degree, *m0, &mut self.get_rng());
+                let g = build_ba(n, *degree, *m0, &mut rng);
 
                 TopologyRealization::Graph(g)
             },
             TopologyModel::CMBiased(degree_dist) => {
                 let g = loop {
-                    let tmp = build_cm_biased(move |r| degree_dist.clone().gen(r), &mut self.get_rng());
+                    let tmp = build_cm_biased(move |r| degree_dist.clone().gen(r), &mut rng);
                     if size_largest_connected_component(&tmp).0 == 1 {
                         break tmp
                     }
@@ -324,7 +323,7 @@ pub trait ABM {
             },
             TopologyModel::CM(degree_dist) => {
                 let g = loop {
-                    let tmp = build_cm(move |r| degree_dist.clone().gen(r), &mut self.get_rng());
+                    let tmp = build_cm(move |r| degree_dist.clone().gen(r), &mut rng);
                     if size_largest_connected_component(&tmp).0 == 1 {
                         break tmp
                     }
@@ -340,9 +339,9 @@ pub trait ABM {
             },
             TopologyModel::WS(neighbors, rewiring) => {
                 let n = self.get_agents().len();
-                // let g = build_ws(n, *neighbors, *rewiring, &mut self.rng);
+                // let g = build_ws(n, *neighbors, *rewiring, &mut rng);
                 let g = loop {
-                    let tmp = build_ws(n, *neighbors, *rewiring, &mut self.get_rng());
+                    let tmp = build_ws(n, *neighbors, *rewiring, &mut rng);
                     if size_largest_connected_component(&tmp).0 == 1 {
                         break tmp
                     }
@@ -352,9 +351,9 @@ pub trait ABM {
             },
             TopologyModel::WSlat(neighbors, rewiring) => {
                 let n = self.get_agents().len();
-                // let g = build_ws(n, *neighbors, *rewiring, &mut self.get_rng());
+                // let g = build_ws(n, *neighbors, *rewiring, &mut rng);
                 let g = loop {
-                    let tmp = build_ws_lattice(n, *neighbors, *rewiring, &mut self.get_rng());
+                    let tmp = build_ws_lattice(n, *neighbors, *rewiring, &mut rng);
                     if size_largest_connected_component(&tmp).0 == 1 {
                         break tmp
                     }
@@ -365,41 +364,41 @@ pub trait ABM {
             TopologyModel::BAT(degree, mt) => {
                 let n = self.get_agents().len();
                 let m0 = (*degree as f64 / 2.).ceil() as usize + mt.ceil() as usize;
-                let g = build_ba_with_clustering(n, *degree, m0, *mt, &mut self.get_rng());
+                let g = build_ba_with_clustering(n, *degree, m0, *mt, &mut rng);
 
                 TopologyRealization::Graph(g)
             },
             TopologyModel::HyperER(c, k) => {
                 let n = self.get_agents().len();
                 // TODO: maybe ensure connectedness
-                let g = build_hyper_uniform_er(n, *c, *k, &mut self.get_rng());
+                let g = build_hyper_uniform_er(n, *c, *k, &mut rng);
 
                 TopologyRealization::Hypergraph(g)
             },
             TopologyModel::HyperERSC(c, k) => {
                 let n = self.get_agents().len();
                 // TODO: maybe ensure connectedness
-                let g = convert_to_simplical_complex(&build_hyper_uniform_er(n, *c, *k, &mut self.get_rng()));
+                let g = convert_to_simplical_complex(&build_hyper_uniform_er(n, *c, *k, &mut rng));
 
                 TopologyRealization::Hypergraph(g)
             },
             TopologyModel::HyperBA(m, k) => {
                 let n = self.get_agents().len();
-                let g = build_hyper_uniform_ba(n, *m, *k, &mut self.get_rng());
+                let g = build_hyper_uniform_ba(n, *m, *k, &mut rng);
 
                 TopologyRealization::Hypergraph(g)
             },
             TopologyModel::HyperER2(c1, c2, k1, k2) => {
                 let n = self.get_agents().len();
-                let mut g = build_hyper_uniform_er(n, *c1, *k1, &mut self.get_rng());
-                g.add_er_hyperdeges(*c2, *k2, &mut self.get_rng());
+                let mut g = build_hyper_uniform_er(n, *c1, *k1, &mut rng);
+                g.add_er_hyperdeges(*c2, *k2, &mut rng);
 
                 TopologyRealization::Hypergraph(g)
             },
             TopologyModel::HyperERGaussian(c, mu, sigma) => {
                 let n = self.get_agents().len();
 
-                let g = build_hyper_gaussian_er(n, *c, *mu, *sigma, &mut self.get_rng());
+                let g = build_hyper_gaussian_er(n, *c, *mu, *sigma, &mut rng);
 
                 TopologyRealization::Hypergraph(g)
             },
@@ -421,25 +420,25 @@ pub trait ABM {
                 let n = self.get_agents().len();
 
                 let mut g = build_hyper_uniform_lattice_3_12(n);
-                g.rewire(*p, &mut self.get_rng());
+                g.rewire(*p, &mut rng);
 
                 TopologyRealization::Hypergraph(g)
             },
         }
     }
 
-    fn gen_init_resources(&mut self, confidence: f32) -> f32 {
+    fn gen_init_resources(&mut self, confidence: f32, mut rng: &mut impl Rng) -> f32 {
         match self.get_resource_model() {
-            ResourceModel::Uniform(l, u) => stretch(self.get_rng().gen(), l, u),
+            ResourceModel::Uniform(l, u) => stretch(rng.gen(), l, u),
             ResourceModel::Pareto(x0, a) => {
                 let pareto = Pareto::new(x0, a - 1.).unwrap();
-                pareto.sample(&mut self.get_rng())
+                pareto.sample(&mut rng)
             },
             ResourceModel::Proportional(a, offset) => (confidence - offset) * a,
             ResourceModel::Antiproportional(a, offset) => 1. - (confidence - offset) * a,
             ResourceModel::HalfGauss(sigma) => {
                 let gauss = Normal::new(0., sigma).unwrap();
-                gauss.sample(&mut self.get_rng()).abs()
+                gauss.sample(&mut rng).abs()
             },
             ResourceModel::None => unimplemented!()
         }
@@ -834,11 +833,12 @@ pub struct ABMBuilder {
     pub(super) population_model: PopulationModel,
     pub(super) topology_model: TopologyModel,
 
-    pub(super) seed: u64,
+    pub(super) rng: Pcg64,
 }
 
 impl ABMBuilder {
     pub fn new(num_agents: u32) -> ABMBuilder {
+        let rng = Pcg64::seed_from_u64(42);
         ABMBuilder {
             num_agents,
 
@@ -847,7 +847,7 @@ impl ABMBuilder {
             population_model: PopulationModel::Uniform(0., 1.),
             topology_model: TopologyModel::FullyConnected,
 
-            seed: 42,
+            rng,
         }
     }
 
@@ -872,7 +872,7 @@ impl ABMBuilder {
     }
 
     pub fn seed(&mut self, seed: u64) -> &mut ABMBuilder {
-        self.seed = seed;
+        self.rng = Pcg64::seed_from_u64(seed);
         self
     }
 }

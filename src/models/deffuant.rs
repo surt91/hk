@@ -4,8 +4,7 @@
 
 use std::fmt;
 
-use rand::{Rng, SeedableRng};
-use rand_pcg::Pcg64;
+use rand::Rng;
 use rand::seq::IteratorRandom;
 use ordered_float::OrderedFloat;
 
@@ -16,8 +15,7 @@ use super::abm::ABMinternals;
 use petgraph::graph::NodeIndex;
 
 impl ABMBuilder {
-    pub fn dw(&self) -> Deffuant {
-        let rng = Pcg64::seed_from_u64(self.seed);
+    pub fn dw(&mut self) -> Deffuant {
         let agents: Vec<Agent> = Vec::new();
 
         let mut dw = Deffuant {
@@ -29,11 +27,10 @@ impl ABMBuilder {
             population_model: self.population_model.clone(),
             topology_model: self.topology_model.clone(),
             abm_internals: ABMinternals::new(),
-            rng,
             agents_initial: agents,
         };
 
-        dw.reset();
+        dw.reset(&mut self.rng);
         dw
     }
 }
@@ -56,10 +53,6 @@ pub struct Deffuant {
 
     abm_internals: ABMinternals,
 
-    // we need many, good (but not crypto) random numbers
-    // we will use here the pcg generator
-    rng: Pcg64,
-
     // for Markov chains
     pub agents_initial: Vec<Agent>,
 }
@@ -77,18 +70,18 @@ impl fmt::Debug for Deffuant {
 }
 
 impl ABM for Deffuant {
-    fn sweep(&mut self) {
+    fn sweep(&mut self, mut rng: &mut impl Rng) {
         for _ in 0..self.num_agents {
-            self.step_naive()
+            self.step_naive(&mut rng)
         }
         self.add_state_to_density();
         self.time += 1;
     }
 
-    fn reset(&mut self) {
+    fn reset(&mut self, mut rng: &mut impl Rng) {
         self.agents = (0..self.num_agents).map(|_| {
-            let xi = self.gen_init_opinion();
-            let ei = self.gen_init_tolerance();
+            let xi = self.gen_init_opinion(&mut rng);
+            let ei = self.gen_init_tolerance(&mut rng);
             Agent::new(
                 xi,
                 ei,
@@ -98,7 +91,7 @@ impl ABM for Deffuant {
 
         self.agents_initial = self.agents.clone();
 
-        self.topology = self.gen_init_topology();
+        self.topology = self.gen_init_topology(&mut rng);
 
         self.time = 0;
     }
@@ -134,24 +127,20 @@ impl ABM for Deffuant {
     fn get_time(&self) -> usize {
         self.time
     }
-
-    fn get_rng(&mut self) -> &mut Pcg64 {
-        &mut self.rng
-    }
 }
 
 impl Deffuant {
-    pub fn step_naive(&mut self) {
+    pub fn step_naive(&mut self, mut rng: &mut impl Rng) {
         let old_opinion;
         let new_opinion = match &self.topology {
             TopologyRealization::None => {
                 // get a random agent
-                let idx = self.rng.gen_range(0, self.num_agents) as usize;
+                let idx = rng.gen_range(0, self.num_agents) as usize;
                 let i = &self.agents[idx];
                 old_opinion = i.opinion;
 
                 let idx2 = loop{
-                    let tmp = self.rng.gen_range(0, self.num_agents) as usize;
+                    let tmp = rng.gen_range(0, self.num_agents) as usize;
                     if tmp != idx {
                         break tmp
                     }
@@ -168,13 +157,13 @@ impl Deffuant {
             }
             TopologyRealization::Graph(g) => {
                 // get a random agent
-                let idx = self.rng.gen_range(0, self.num_agents) as usize;
+                let idx = rng.gen_range(0, self.num_agents) as usize;
                 let i = &self.agents[idx];
                 old_opinion = i.opinion;
 
                 let nodes: Vec<NodeIndex<u32>> = g.node_indices().collect();
                 let j = g.neighbors(nodes[idx])
-                    .choose(&mut self.rng);
+                    .choose(&mut rng);
                 if let Some(idx2) = j {
                     if (i.opinion - self.agents[g[idx2]].opinion).abs() < i.tolerance {
                         let new_opinion = (i.opinion + self.agents[g[idx2]].opinion) / 2.;
@@ -191,7 +180,7 @@ impl Deffuant {
             }
             TopologyRealization::Hypergraph(h) => {
                 // get a random hyperdege
-                let eidx = self.rng.gen_range(0, h.edge_nodes.len()) as usize;
+                let eidx = rng.gen_range(0, h.edge_nodes.len()) as usize;
                 let e = h.edge_nodes[eidx];
 
                 let g = &h.factor_graph;
