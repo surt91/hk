@@ -145,7 +145,7 @@ impl RewDeffuant {
                 .map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance))
                 .min().unwrap().into_inner();
 
-            max - min < mintol
+            max - min > mintol
         } else {
             panic!("only implemented for hypergraphs")
         }
@@ -165,7 +165,6 @@ impl RewDeffuant {
         }
     }
 
-
     pub fn step_naive(&mut self, mut rng: &mut impl Rng) {
         let old_opinion;
         let (new_opinion, changed_edge) = match &self.topology {
@@ -173,7 +172,7 @@ impl RewDeffuant {
                 // get a random, non-empty hyperdege
                 let e = loop {
                     let e = h.edge_nodes.iter().choose(&mut rng).unwrap();
-                    if h.factor_graph.neighbors(*e).count() > 0 {
+                    if h.factor_graph.neighbors(*e).next().is_some() {
                         break *e
                     };
                 };
@@ -184,7 +183,7 @@ impl RewDeffuant {
 
                 // if all nodes of the hyperedge are pairwise compatible
                 // all members of this hyperedge assume its average opinion
-                if self.hyperedge_is_frustrated(e) {
+                if !self.hyperedge_is_frustrated(e) {
                     let new_opinion = self.hyperedge_mean(e);
                     for n in g.neighbors(e) {
                         self.agents[*g.node_weight(n).unwrap()].opinion = new_opinion
@@ -201,6 +200,7 @@ impl RewDeffuant {
             self.acc_change((old_opinion - new_o).abs());
         } else {
             let leaving;
+            let other;
             let new_edge;
             let e = changed_edge;
             if let TopologyRealization::Hypergraph(h) = &self.topology {
@@ -211,24 +211,29 @@ impl RewDeffuant {
                     // get random hyperedges, until we find one which is frustrated
                     // that can also be the same hyperedge, which solves the problem
                     // in the case that there is only one frustrated edge
-                    h.edge_nodes.iter().filter(|&&e| self.hyperedge_is_frustrated(e)).choose(&mut rng).unwrap()
+                    h.edge_nodes.iter()
+                        .filter(|&&e| self.hyperedge_is_frustrated(e))
+                        .choose(&mut rng)
+                        .unwrap()
                 } else {
-                    // just get a random edge
-                    loop {
-                        let tmp = h.edge_nodes.iter().choose(&mut rng).unwrap();
-                        // make sure to not choose the same edge
-                        // TODO: maybe we should remove this for consistency with the above case
-                        if h.factor_graph.find_edge(*tmp, leaving).is_none() {
-                            break tmp
-                        }
-                    }
+                    // just get a random edge, can also be the same edge, to be consistent
+                    // with the above case, but this should be unlikely
+                    h.edge_nodes.iter()
+                        .choose(&mut rng)
+                        .unwrap()
                 }.clone();
+                other = h.factor_graph.neighbors(new_edge).choose(&mut rng).unwrap();
             } else {
                 panic!("only implemented for hypergraphs");
             };
+            // rewire the graph accordingly
             if let TopologyRealization::Hypergraph(h) = &mut self.topology {
                 h.factor_graph.add_edge(leaving, new_edge, 1);
-                let to_remove = h.factor_graph.find_edge(leaving, e).unwrap();
+                h.factor_graph.add_edge(other, changed_edge, 1);
+
+                let to_remove = h.factor_graph.find_edge(leaving, changed_edge).unwrap();
+                h.factor_graph.remove_edge(to_remove);
+                let to_remove = h.factor_graph.find_edge(other, new_edge).unwrap();
                 h.factor_graph.remove_edge(to_remove);
             };
         }
