@@ -132,9 +132,9 @@ pub enum TopologyModel {
     /// HyperER with Gaussian distributed degrees for all orders
     HyperERGaussian(f64, f64, f64),
     /// Hypergraph with a spatial structure
-    HyperLattice_3_12,
+    HyperLattice3_12,
     /// Hypergraph with a spatial structure
-    HyperLattice_5_15,
+    HyperLattice5_15,
     /// Watts Strogatz Hypergraphs on a 3_12 lattice
     HyperWSlat(f64),
 }
@@ -401,14 +401,14 @@ pub trait ABM {
 
                 TopologyRealization::Hypergraph(g)
             },
-            TopologyModel::HyperLattice_3_12 => {
+            TopologyModel::HyperLattice3_12 => {
                 let n = self.get_agents().len();
 
                 let g = build_hyper_uniform_lattice_3_12(n);
 
                 TopologyRealization::Hypergraph(g)
             },
-            TopologyModel::HyperLattice_5_15 => {
+            TopologyModel::HyperLattice5_15 => {
                 let n = self.get_agents().len();
 
                 let g = build_hyper_uniform_lattice_5_15(n);

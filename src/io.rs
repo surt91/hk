@@ -41,12 +41,6 @@ impl Output {
         &mut self.tmp_file
     }
 
-    pub fn final_name(&self) -> PathBuf {
-        let mut gz_ext = self.tmp_path.extension().unwrap().to_os_string();
-        gz_ext.push(".gz");
-        self.final_path.with_extension(&gz_ext)
-    }
-
     fn zip(name: &Path) {
         Command::new("gzip")
             .arg(name.to_str().unwrap())

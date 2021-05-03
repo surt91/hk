@@ -304,8 +304,8 @@ fn main() -> std::io::Result<()> {
             args.topology_parameter2 as f64,
             args.topology_parameter3 as f64
         ),
-        15 => TopologyModel::HyperLattice_3_12,
-        16 => TopologyModel::HyperLattice_5_15,
+        15 => TopologyModel::HyperLattice3_12,
+        16 => TopologyModel::HyperLattice5_15,
         17 => TopologyModel::HyperWSlat(args.topology_parameter as f64),
         _ => unreachable!(),
     };
