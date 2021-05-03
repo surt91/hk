@@ -13,7 +13,7 @@ use super::{PopulationModel, TopologyModel, TopologyRealization, ResourceModel, 
 use super::{ABM, ABMBuilder};
 use super::abm::ABMinternals;
 
-use petgraph::graph::NodeIndex;
+use petgraph::graph::{UnGraph, Graph, NodeIndex};
 
 impl ABMBuilder {
     pub fn rewiring(&self) -> RewDeffuant {
@@ -25,6 +25,7 @@ impl ABMBuilder {
             agents: agents.clone(),
             time: 0,
             mu: 1.,
+            both_frust: true,
             topology: TopologyRealization::None,
             population_model: self.population_model.clone(),
             topology_model: self.topology_model.clone(),
@@ -46,6 +47,9 @@ pub struct RewDeffuant {
 
     // weight of the agent itself
     mu: f64,
+
+    // exchange only angents which are both frustrated
+    both_frust: bool,
 
     /// topology of the possible interaction between agents
     /// None means fully connected
@@ -141,6 +145,38 @@ impl ABM for RewDeffuant {
 }
 
 impl RewDeffuant {
+    fn hyperedge_is_frustrated(&self, e: NodeIndex<u32>) -> bool {
+        if let TopologyRealization::Hypergraph(h) = &self.topology {
+            let g = &h.factor_graph;
+            let it = g.neighbors(e)
+                .map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
+            let min = it.clone().min().unwrap().into_inner();
+            let max = it.clone().max().unwrap().into_inner();
+            let mintol = g.neighbors(e)
+                .map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance))
+                .min().unwrap().into_inner();
+
+            max - min < mintol
+        } else {
+            panic!("only implemented for hypergraphs")
+        }
+    }
+
+    fn hyperedge_mean(&self, e: NodeIndex<u32>) -> f32 {
+        if let TopologyRealization::Hypergraph(h) = &self.topology {
+            let g = &h.factor_graph;
+            let sum: f32 = g.neighbors(e)
+                .map(|n| self.agents[*g.node_weight(n).unwrap()].opinion)
+                .sum();
+            let len = g.neighbors(e).count();
+
+            sum / len as f32
+        } else {
+            panic!("only implemented for hypergraphs")
+        }
+    }
+
+
     pub fn step_naive(&mut self) {
         let old_opinion;
         let (new_opinion, changed_edge) = match &self.topology {
@@ -154,20 +190,13 @@ impl RewDeffuant {
                 };
 
                 let g = &h.factor_graph;
-
-                let it = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].opinion));
-                let min = it.clone().min().unwrap().into_inner();
-                let max = it.clone().max().unwrap().into_inner();
-                let mintol = g.neighbors(e).map(|n| OrderedFloat(self.agents[*g.node_weight(n).unwrap()].tolerance)).min().unwrap().into_inner();
-                let sum: f32 = g.neighbors(e).map(|n| self.agents[*g.node_weight(n).unwrap()].opinion).sum();
-                let len = g.neighbors(e).count();
-
-                old_opinion = min;
+                let first_member = h.factor_graph.neighbors(e).next().unwrap();
+                old_opinion = self.agents[*g.node_weight(first_member).unwrap()].opinion;
 
                 // if all nodes of the hyperedge are pairwise compatible
                 // all members of this hyperedge assume its average opinion
-                if max - min < mintol {
-                    let new_opinion = sum / len as f32;
+                if self.hyperedge_is_frustrated(e) {
+                    let new_opinion = self.hyperedge_mean(e);
                     for n in g.neighbors(e) {
                         self.agents[*g.node_weight(n).unwrap()].opinion = new_opinion
                     }
@@ -185,14 +214,26 @@ impl RewDeffuant {
             if let TopologyRealization::Hypergraph(h) = &mut self.topology {
                 let e = changed_edge;
                 // since they could not reach an agreement, a random agent leaves this hyperedge
-                // frustrated and joins a random different hyperedge
+                // frustrated and is exchanged with a random agent or another frustrated agent
                 let leaving = h.factor_graph.neighbors(e).choose(&mut self.rng).unwrap();
-                let new_edge = loop {
-                    let tmp = h.edge_nodes.iter().choose(&mut self.rng).unwrap();
-                    if h.factor_graph.find_edge(*tmp, leaving).is_none() {
-                        break tmp
+                let new_edge = if self.both_frust {
+                    // get random hyperedges, until we find one which is frustrated
+                    // that can also be the same hyperedge, which solves the problem
+                    // in the case that there is only one frustrated edge
+                    h.edge_nodes.iter().filter(|&&e| self.hyperedge_is_frustrated(e)).choose(&mut self.rng).unwrap()
+                } else {
+                    // just get a random edge
+                    loop {
+                        let tmp = h.edge_nodes.iter().choose(&mut self.rng).unwrap();
+                        // make sure to not choose the same edge
+                        // TODO: maybe we should remove this for consistency with the above case
+                        if h.factor_graph.find_edge(*tmp, leaving).is_none() {
+                            break tmp
+                        }
                     }
                 };
+
+
                 h.factor_graph.add_edge(leaving, *new_edge, 1);
                 let to_remove = h.factor_graph.find_edge(leaving, e).unwrap();
                 h.factor_graph.remove_edge(to_remove);
