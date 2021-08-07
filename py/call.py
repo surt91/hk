@@ -14,7 +14,7 @@ with open("jobs.lst", "w") as f:
     for p in ps:
         ctr += 1
         name = parameters.outname.format(**p).replace(".", "")
-        cmd = "./hk -n {num_agents} -u {tolerance_upper} -l {tolerance_lower} -m {model} -d {dimension} -i {iterations} -s {ctr} --eta {eta} --samples {samples} --resource-distribution {resource_distribution} --sync -o {filename}".format(filename=name, ctr=ctr, **p)
+        cmd = "./hk -n {num_agents} -u {tolerance_upper} -l {tolerance_lower} -m {model} -i {iterations} -s {ctr} --eta {eta} --samples {samples} --resource-distribution {resource_distribution} --min-resources {min_resources} --topology {topology} --topology-parameter {topology_parameter} --topology-parameter2 {topology_parameter2} --max-resources {max_resources} -o {filename}".format(filename=name, ctr=ctr, **p)
         indicator = name + ".cluster.dat.gz"
         if not os.path.exists(indicator) or "-f" in sys.argv:
             cmds.append(cmd.split())
