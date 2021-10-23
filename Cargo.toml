@@ -13,16 +13,16 @@ graphtool = ["inline-python"]
 rand = "0.7.0"
 rand_pcg = "0.2.0"
 rand_distr = "0.2.2"
-itertools = "*"
+itertools = "0.9"
 ordered-float = "1.0"
 structopt = "0.3"
 petgraph = "0.4"
-counter = "*"
+counter = "0.4"
 
-png = "*"
-colorous = "*"
+png = "0.16"
+colorous = "1.0"
 
-git-version = "*"
+git-version = "0.3"
 
 largedev = { git = "https://github.com/surt91/largedev" }
 
