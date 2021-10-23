@@ -11,6 +11,12 @@ opinion dynamics models, in particular:
 
 Also some unfinished experiments.
 
+It was used in the following publications (all open access):
+
+1. [*When open mindedness hinders consensus*, Hendrik Schawe, Laura Hernández, Scientific Reports **10**, 8273 (2020) ](https://dx.doi.org/10.1038/s41598-020-64691-0)
+2. [*Collective effects of the cost of opinion change*, Hendrik Schawe, Laura Hernández, Scientific Reports **10**, 13825 (2020)](https://dx.doi.org/10.1038/s41598-020-70809-1)
+3. [*When network bridges foster consensus. Bounded confidence models in networked societies*, Hendrik Schawe, Sylvain Fontaine, Laura Hernández, Physical Review Research **3**, 023208 (2021)](https://dx.doi.org/10.1103/PhysRevResearch.3.023208)
+
 ## Setup
 
 Install rust, compile and run it like:
